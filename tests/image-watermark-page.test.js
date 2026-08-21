@@ -132,16 +132,48 @@ test('parameter handlers normalize values, retain at most 30 Unicode code points
   assert.deepEqual(page.data, before)
 })
 
-test('text input keeps 30 complete grapheme clusters for family emoji and combining marks', () => {
+test('text input keeps 30 complete grapheme clusters and returns its replacement value', () => {
   const { definition } = loadPage()
   const page = createInstance(definition)
   const family = '👨‍👩‍👧‍👦'
-  page.onTextInput({ detail: { value: family.repeat(31) } })
+  const familyResult = page.onTextInput({ detail: { value: family.repeat(31) } })
   assert.equal(page.data.watermarkText, family.repeat(30))
+  assert.equal(familyResult, page.data.watermarkText)
   assert.doesNotMatch(page.data.watermarkText, /‍$/)
-  page.onTextInput({ detail: { value: 'e\u0301'.repeat(31) } })
+  const combiningResult = page.onTextInput({ detail: { value: 'e\u0301'.repeat(31) } })
   assert.equal(page.data.watermarkText, 'e\u0301'.repeat(30))
+  assert.equal(combiningResult, page.data.watermarkText)
   assert.doesNotMatch(page.data.watermarkText, /e$/)
+})
+
+test('grapheme fallback keeps ZWJ, Mark, and flag clusters intact without Intl.Segmenter', () => {
+  const originalSegmenter = Intl.Segmenter
+  try {
+    Intl.Segmenter = undefined
+    const { definition } = loadPage()
+    const page = createInstance(definition)
+    const family = '👨‍👩‍👧‍👦'
+    const familyResult = page.onTextInput({ detail: { value: family.repeat(31) } })
+    assert.equal(familyResult, family.repeat(30))
+    assert.equal(familyResult, page.data.watermarkText)
+    assert.doesNotMatch(familyResult, /‍$/)
+    const indic = 'कि'
+    const indicResult = page.onTextInput({ detail: { value: indic.repeat(31) } })
+    assert.equal(indicResult, indic.repeat(30))
+    assert.equal(indicResult, page.data.watermarkText)
+    assert.doesNotMatch(indicResult, /क$/)
+    const flag = '🇨🇳'
+    const flagsResult = page.onTextInput({ detail: { value: `a${flag.repeat(20)}` } })
+    assert.equal(flagsResult, `a${flag.repeat(20)}`)
+    assert.equal(flagsResult, page.data.watermarkText)
+    const indicators = Array.from(flagsResult).filter((character) => {
+      const point = character.codePointAt(0)
+      return point >= 0x1f1e6 && point <= 0x1f1ff
+    })
+    assert.equal(indicators.length % 2, 0)
+  } finally {
+    Intl.Segmenter = originalSegmenter
+  }
 })
 
 test('applyWatermark requires source and nonblank trimmed text before canvas access', async () => {
@@ -410,7 +442,7 @@ test('save uses exact output, preserves physical mutex across invalidation, and 
 test('watermark WXML is local fixed-position UI with one ad slot and accessible controls', () => {
   const wxml = fs.readFileSync(path.join(__dirname, '../pages/image-watermark/image-watermark.wxml'), 'utf8')
   assert.match(wxml, /id="processor-canvas" type="2d"/)
-  assert.match(wxml, /maxlength="30"/)
+  assert.match(wxml, /maxlength="-1"/)
   assert.match(wxml, /aria-label="水印文字"/)
   assert.match(wxml, /aria-label="水印透明度"/)
   assert.match(wxml, /data-color="#ffffff"[^>]*aria-role="radio"[^>]*aria-checked="\{\{color === '#ffffff'\}\}"[^>]*aria-label="白色水印"/)

@@ -11,7 +11,7 @@
   <view class="card" wx:if="{{source}}">
     <view class="field">
       <text class="field-label">水印文字</text>
-      <input value="{{watermarkText}}" maxlength="30" placeholder="最多 30 个字符" aria-label="水印文字" bindinput="onTextInput" disabled="{{processing}}" />
+      <input value="{{watermarkText}}" maxlength="-1" placeholder="最多 30 个字符" aria-label="水印文字" bindinput="onTextInput" disabled="{{processing}}" />
     </view>
     <view class="field">
       <text class="field-label">颜色</text>

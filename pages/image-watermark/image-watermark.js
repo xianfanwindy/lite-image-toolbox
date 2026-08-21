@@ -8,6 +8,10 @@ const { resultBannerUnitId } = require('../../config/ads')
 const MAX_SIDE = 4096
 const COLORS = ['#000000', '#ffffff']
 const POSITIONS = ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right']
+let cachedSegmenter
+let segmenterChecked = false
+let markPattern
+let markPatternChecked = false
 
 function getFileSize(path) {
   return new Promise((resolve) => {
@@ -27,12 +31,52 @@ function clearResult(page) {
   page.setData({ resultPath: '', resultSize: 0, resultSizeText: '', warningMessage: '', errorMessage: '' })
 }
 
+function getSegmenter() {
+  if (segmenterChecked) return cachedSegmenter
+  segmenterChecked = true
+  if (typeof Intl === 'undefined' || typeof Intl.Segmenter !== 'function') return null
+  try {
+    cachedSegmenter = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' })
+  } catch (error) {
+    cachedSegmenter = null
+  }
+  return cachedSegmenter
+}
+
+function getMarkPattern() {
+  if (markPatternChecked) return markPattern
+  markPatternChecked = true
+  try {
+    markPattern = new RegExp('\\p{Mark}', 'u')
+  } catch (error) {
+    markPattern = null
+  }
+  return markPattern
+}
+
+function isRegionalIndicator(character) {
+  const point = character.codePointAt(0)
+  return point >= 0x1f1e6 && point <= 0x1f1ff
+}
+
 function isExtend(character) {
   const point = character.codePointAt(0)
-  return (point >= 0x0300 && point <= 0x036f)
+  const marks = getMarkPattern()
+  return (marks && marks.test(character))
+    || (point >= 0x0300 && point <= 0x036f)
     || (point >= 0x1ab0 && point <= 0x1aff)
     || (point >= 0x1dc0 && point <= 0x1dff)
     || (point >= 0x20d0 && point <= 0x20ff)
+    || (point >= 0x0483 && point <= 0x0489)
+    || (point >= 0x0591 && point <= 0x05c7)
+    || (point >= 0x0610 && point <= 0x061a)
+    || (point >= 0x064b && point <= 0x065f)
+    || point === 0x0670
+    || (point >= 0x06d6 && point <= 0x06ed)
+    || (point >= 0x0900 && point <= 0x0903)
+    || (point >= 0x093a && point <= 0x094d)
+    || (point >= 0x0951 && point <= 0x0957)
+    || (point >= 0x0962 && point <= 0x0963)
     || (point >= 0xfe00 && point <= 0xfe0f)
     || (point >= 0xfe20 && point <= 0xfe2f)
     || (point >= 0xe0100 && point <= 0xe01ef)
@@ -40,12 +84,19 @@ function isExtend(character) {
 }
 
 function splitGraphemes(value) {
-  const points = Array.from(value === undefined || value === null ? '' : String(value))
+  const text = value === undefined || value === null ? '' : String(value)
+  const segmenter = getSegmenter()
+  if (segmenter) return Array.from(segmenter.segment(text), (segment) => segment.segment)
+  const points = Array.from(text)
   const graphemes = []
   let index = 0
   while (index < points.length) {
     let grapheme = points[index]
     index += 1
+    if (isRegionalIndicator(grapheme) && index < points.length && isRegionalIndicator(points[index])) {
+      grapheme += points[index]
+      index += 1
+    }
     while (index < points.length && isExtend(points[index])) {
       grapheme += points[index]
       index += 1
@@ -133,11 +184,13 @@ Page({
   },
 
   onTextInput(event) {
-    if (this.data.processing) return
+    if (this.data.processing) return this.data.watermarkText
     const watermarkText = trimGraphemes(event && event.detail && event.detail.value)
-    if (watermarkText === this.data.watermarkText) return
-    clearResult(this)
-    this.setData({ watermarkText })
+    if (watermarkText !== this.data.watermarkText) {
+      clearResult(this)
+      this.setData({ watermarkText })
+    }
+    return watermarkText
   },
 
   selectColor(event) {

@@ -21,7 +21,7 @@
       <text class="section-title">压缩质量</text>
       <text class="quality-value">{{quality}}%</text>
     </view>
-    <slider min="20" max="95" step="5" value="{{quality}}" activeColor="#07c160" bindchange="onQualityChange" />
+    <slider min="20" max="95" step="5" value="{{quality}}" activeColor="#07c160" bindchange="onQualityChange" disabled="{{processing}}" />
     <text wx:if="{{source.format === 'png'}}" class="hint">透明 PNG 将保持透明，质量数值不影响 PNG 编码</text>
   </view>
 
@@ -43,7 +43,7 @@
       <text>原图 {{sourceSizeText}}</text>
       <text>压缩后 {{resultSizeText}}</text>
     </view>
-    <button class="primary-button save-button" bindtap="saveResult">保存到相册</button>
+    <button class="primary-button save-button" bindtap="saveResult" loading="{{saving}}" disabled="{{saving}}">保存到相册</button>
     <ad-slot unit-id="{{resultBannerUnitId}}" />
   </view>
 

@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const { afterEach } = test
 
 const pagePath = require.resolve('../pages/image-compress/image-compress')
@@ -92,6 +94,7 @@ test('defaults expose only the local compression UI state', () => {
     source: null,
     quality: 80,
     processing: false,
+    saving: false,
     resultPath: '',
     resultSize: 0,
     sourceSizeText: '',
@@ -142,6 +145,50 @@ test('quality input rounds and clamps within the supported range', () => {
   assert.equal(page.data.quality, 20)
 })
 
+test('a changed quality clears a stale compression result', () => {
+  const { definition } = loadPage()
+  const page = createInstance(definition)
+  Object.assign(page.data, {
+    quality: 80,
+    resultPath: 'old.jpg',
+    resultSize: 12,
+    resultSizeText: '12 B',
+    errorMessage: 'old error',
+  })
+  page.onQualityChange({ detail: { value: '75' } })
+  assert.equal(page.data.quality, 75)
+  assert.equal(page.data.resultPath, '')
+  assert.equal(page.data.resultSize, 0)
+  assert.equal(page.data.resultSizeText, '')
+  assert.equal(page.data.errorMessage, '')
+})
+
+test('quality stays fixed during compression and export uses the initial snapshot', async () => {
+  const canvasReady = createDeferred()
+  const exports = []
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    canvas: {
+      getCanvas: () => canvasReady.promise,
+      loadCanvasImage: async () => ({}),
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async (...args) => { exports.push(args); return 'output.jpg' },
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const compression = page.compressImage()
+  page.onQualityChange({ detail: { value: '40' } })
+  assert.equal(page.data.quality, 80)
+  page.data.quality = 40
+  canvasReady.resolve({})
+  await compression
+  assert.equal(exports[0][4], 0.8)
+})
+
 test('compressImage requires a source before touching canvas', async () => {
   let canvasCalled = false
   const { definition, wx } = loadPage({ canvas: { getCanvas: async () => { canvasCalled = true } } })
@@ -153,6 +200,7 @@ test('compressImage requires a source before touching canvas', async () => {
 
 test('compressImage renders JPG at pixel ratio one on white and reads output size', async () => {
   const calls = []
+  const canvas = { id: 'canvas' }
   const context = {
     fillRect: (...args) => calls.push(['fillRect', ...args]),
     drawImage: (...args) => calls.push(['drawImage', ...args]),
@@ -160,7 +208,7 @@ test('compressImage renders JPG at pixel ratio one on white and reads output siz
   const source = { path: 'source.jpg', width: 9000, height: 4500, size: 1000, format: 'jpg' }
   const { definition } = loadPage({
     canvas: {
-      getCanvas: async () => ({ id: 'canvas' }),
+      getCanvas: async () => canvas,
       loadCanvasImage: async () => ({ id: 'image' }),
       prepareCanvas: (canvas, width, height, ratio) => {
         calls.push(['prepare', canvas, width, height, ratio])
@@ -177,10 +225,10 @@ test('compressImage renders JPG at pixel ratio one on white and reads output siz
   await page.compressImage()
   assert.deepEqual(calls, [
     ['fit', 9000, 4500, 4096],
-    ['prepare', { id: 'canvas' }, 4096, 2048, 1],
+    ['prepare', canvas, 4096, 2048, 1],
     ['fillRect', 0, 0, 4096, 2048],
     ['drawImage', { id: 'image' }, 0, 0, 4096, 2048],
-    ['export', { id: 'canvas' }, 4096, 2048, 'jpg', 0.8],
+    ['export', canvas, 4096, 2048, 'jpg', 0.8],
   ])
   assert.equal(context.fillStyle, '#ffffff')
   assert.equal(page.data.resultPath, 'output.jpg')
@@ -190,10 +238,11 @@ test('compressImage renders JPG at pixel ratio one on white and reads output siz
 
 test('compressImage keeps a PNG transparent and does not pass quality to PNG encoding policy', async () => {
   const calls = []
+  const canvas = {}
   const context = { fillRect: () => calls.push('fill'), drawImage: () => calls.push('draw') }
   const { definition } = loadPage({
     canvas: {
-      getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }),
+      getCanvas: async () => canvas, loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }),
       exportCanvas: async (...args) => { calls.push(args); return 'output.png' }, formatBytes: () => '1 KB',
     },
     math: { fitWithinSide: () => ({ width: 12, height: 8 }) },
@@ -203,7 +252,7 @@ test('compressImage keeps a PNG transparent and does not pass quality to PNG enc
   page.data.source = { path: 'source.png', width: 12, height: 8, size: 1, format: 'png' }
   page.data.quality = 35
   await page.compressImage()
-  assert.deepEqual(calls, ['draw', [{}, 12, 8, 'png', 0.35]])
+  assert.deepEqual(calls, ['draw', [canvas, 12, 8, 'png', 0.35]])
 })
 
 test('compression failure clears output but preserves source and quality', async () => {
@@ -230,6 +279,29 @@ test('saveResult uses the exact result path and only confirms an actual save', a
   page.data.resultPath = 'wxfile://output.jpg'
   await page.saveResult()
   assert.deepEqual(savedPaths, ['wxfile://output.jpg'])
+  assert.deepEqual(wx.toasts, [{ title: '已保存到相册', icon: 'success' }])
+})
+
+test('saveResult accepts one in-flight save and restores saving afterwards', async () => {
+  const saveReady = createDeferred()
+  let calls = 0
+  const { definition, wx } = loadPage({
+    save: {
+      saveImageToAlbum: () => {
+        calls += 1
+        return saveReady.promise
+      },
+    },
+  })
+  const page = createInstance(definition)
+  page.data.resultPath = 'wxfile://output.jpg'
+  const first = page.saveResult()
+  const second = page.saveResult()
+  assert.equal(calls, 1)
+  assert.equal(page.data.saving, true)
+  saveReady.resolve({ saved: true, cancelled: false })
+  await Promise.all([first, second])
+  assert.equal(page.data.saving, false)
   assert.deepEqual(wx.toasts, [{ title: '已保存到相册', icon: 'success' }])
 })
 
@@ -334,4 +406,121 @@ test('a successful replacement invalidates an older compression result', async (
   assert.deepEqual(page.data.source, { ...replacement, format: 'png' })
   assert.equal(page.data.resultPath, '')
   assert.equal(page.data.processing, false)
+})
+
+test('a direct duplicate compression is ignored and a successful replacement resets its guard', async () => {
+  const canvasReady = createDeferred()
+  let canvasCalls = 0
+  const replacement = { path: 'new.jpg', width: 5, height: 6, size: 12, type: 'jpg' }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: { getCanvas: () => { canvasCalls += 1; return canvasReady.promise }, formatBytes: () => '12 B' },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'old.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const first = page.compressImage()
+  const second = page.compressImage()
+  assert.equal(canvasCalls, 1)
+  await page.chooseImage()
+  assert.equal(page.data.processing, false)
+  assert.equal(page._compressing, false)
+  canvasReady.resolve({})
+  await Promise.all([first, second])
+})
+
+test('compression releases decoded image and canvas backing storage after success', async () => {
+  const canvas = { width: 99, height: 88 }
+  const image = { id: 'decoded' }
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    canvas: {
+      getCanvas: async () => canvas,
+      loadCanvasImage: async () => image,
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async () => 'output.jpg',
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  await page.compressImage()
+  assert.equal(page._image, undefined)
+  assert.equal(page._canvas, null)
+  assert.equal(canvas.width, 1)
+  assert.equal(canvas.height, 1)
+})
+
+test('a successful replacement releases the currently owned canvas', async () => {
+  const canvas = { width: 100, height: 80 }
+  const replacement = { path: 'new.jpg', width: 5, height: 6, size: 12, type: 'jpg' }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: { formatBytes: () => '12 B' },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page._operationId = 4
+  page._canvas = canvas
+  page._canvasOwnerId = 4
+  await page.chooseImage()
+  assert.equal(page._canvas, null)
+  assert.equal(canvas.width, 1)
+  assert.equal(canvas.height, 1)
+})
+
+test('an invalidated owner cannot release a canvas reassigned to a newer compression', async () => {
+  const oldImageReady = createDeferred()
+  const newExportReady = createDeferred()
+  const canvas = { width: 1, height: 1 }
+  const replacement = { path: 'new.jpg', width: 5, height: 6, size: 12, type: 'jpg' }
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: {
+      getCanvas: async () => canvas,
+      loadCanvasImage: (ignoredCanvas, sourcePath) => sourcePath === 'old.jpg' ? oldImageReady.promise : Promise.resolve({}),
+      prepareCanvas: () => {
+        canvas.width = 64
+        canvas.height = 32
+        return { context }
+      },
+      exportCanvas: () => newExportReady.promise,
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'old.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const oldCompression = page.compressImage()
+  await Promise.resolve()
+  await page.chooseImage()
+  const newCompression = page.compressImage()
+  await Promise.resolve()
+  await Promise.resolve()
+  oldImageReady.resolve({ id: 'old' })
+  await oldCompression
+  assert.equal(canvas.width, 64)
+  assert.equal(canvas.height, 32)
+  newExportReady.resolve('new-output.jpg')
+  await newCompression
+})
+
+test('canvas errMsg reports the oversized-image recovery message', async () => {
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => { throw { errMsg: 'canvasToTempFilePath:fail canvas too large' } } },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, format: 'jpg' }
+  await page.compressImage()
+  assert.equal(page.data.errorMessage, '图片尺寸过大，请选择较小的图片')
+})
+
+test('compression controls disable quality changes and duplicate saves in WXML', () => {
+  const wxml = fs.readFileSync(path.join(__dirname, '../pages/image-compress/image-compress.wxml'), 'utf8')
+  assert.match(wxml, /<slider[^>]*disabled="\{\{processing\}\}"/)
+  assert.match(wxml, /<button class="primary-button save-button"[^>]*loading="\{\{saving\}\}" disabled="\{\{saving\}\}"/)
 })

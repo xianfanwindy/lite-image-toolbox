@@ -18,6 +18,12 @@ test('JPG aliases normalize and use quality', () => {
   assert.equal(shouldFillWhite('jpg'), true)
 })
 
+test('invalid JPG quality values use the default quality', () => {
+  for (const quality of [null, '', undefined, 'not-a-number']) {
+    assert.deepEqual(getCanvasExportOptions('jpg', quality), { fileType: 'jpg', quality: 0.8 })
+  }
+})
+
 test('path extension is used only when metadata is missing', () => {
   assert.equal(normalizeImageFormat('', 'wxfile://tmp/source.PNG'), 'png')
   assert.equal(normalizeImageFormat('', 'wxfile://tmp/source.heic'), 'jpg')

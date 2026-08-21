@@ -11,7 +11,7 @@ function shouldFillWhite(format) {
 
 function getCanvasExportOptions(format, quality) {
   if (normalizeImageFormat(format, '') === 'png') return { fileType: 'png' }
-  const value = Number(quality)
+  const value = typeof quality === 'number' ? quality : NaN
   return {
     fileType: 'jpg',
     quality: Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8,

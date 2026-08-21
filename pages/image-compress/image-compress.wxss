@@ -1,6 +1,81 @@
-.tool-shell-title {
+.compress-page {
+  padding-bottom: 56rpx;
+}
+
+.intro-card,
+.image-card,
+.quality-card {
+  margin-bottom: 24rpx;
+}
+
+.page-title {
   display: block;
-  margin-bottom: 16rpx;
-  font-size: 34rpx;
+  margin-bottom: 12rpx;
+  font-size: 38rpx;
   font-weight: 600;
+}
+
+.choose-button,
+.process-button,
+.save-button {
+  width: 100%;
+  min-height: 88rpx;
+  margin-bottom: 24rpx;
+  line-height: 88rpx;
+  font-size: 30rpx;
+}
+
+.preview-image {
+  display: block;
+  width: 100%;
+  height: 440rpx;
+  margin: 20rpx 0;
+  border-radius: 12rpx;
+  background: #f5f7f6;
+}
+
+.meta-row,
+.quality-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  color: var(--color-muted);
+  font-size: 26rpx;
+}
+
+.quality-header {
+  align-items: center;
+  color: var(--color-text);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.quality-value {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.quality-card .hint {
+  display: block;
+  margin-top: 12rpx;
+}
+
+.error-message {
+  margin: 0 0 24rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 12rpx;
+  color: #c23b32;
+  background: #fff0ee;
+  font-size: 26rpx;
+}
+
+.result-card .section-title {
+  display: block;
+}
+
+.save-button {
+  margin: 28rpx 0 20rpx;
 }

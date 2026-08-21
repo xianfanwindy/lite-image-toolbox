@@ -24,6 +24,12 @@ test('invalid JPG quality values use the default quality', () => {
   }
 })
 
+test('JPG quality is clamped and PNG ignores quality', () => {
+  assert.deepEqual(getCanvasExportOptions('jpg', 2), { fileType: 'jpg', quality: 1 })
+  assert.deepEqual(getCanvasExportOptions('jpg', -1), { fileType: 'jpg', quality: 0 })
+  assert.deepEqual(getCanvasExportOptions('png', 0.1), { fileType: 'png' })
+})
+
 test('path extension is used only when metadata is missing', () => {
   assert.equal(normalizeImageFormat('', 'wxfile://tmp/source.PNG'), 'png')
   assert.equal(normalizeImageFormat('', 'wxfile://tmp/source.heic'), 'jpg')

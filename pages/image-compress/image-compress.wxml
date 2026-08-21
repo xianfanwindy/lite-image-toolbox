@@ -1,6 +1,51 @@
-<view class="page tool-shell">
-  <view class="card">
-    <text class="tool-shell-title">图片压缩</text>
-    <text class="hint">功能将在后续任务接入</text>
+<view class="page compress-page">
+  <view class="card intro-card">
+    <text class="page-title">图片压缩</text>
+    <text class="hint">图片仅在本机处理，不会上传</text>
   </view>
+
+  <button class="secondary-button choose-button" bindtap="chooseImage">
+    {{source ? '更换图片' : '选择图片'}}
+  </button>
+
+  <view wx:if="{{source}}" class="card image-card">
+    <image class="preview-image" src="{{source.path}}" mode="aspectFit" />
+    <view class="meta-row">
+      <text>{{source.width}} × {{source.height}}</text>
+      <text>{{sourceSizeText}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{source}}" class="card quality-card">
+    <view class="quality-header">
+      <text class="section-title">压缩质量</text>
+      <text class="quality-value">{{quality}}%</text>
+    </view>
+    <slider min="20" max="95" step="5" value="{{quality}}" activeColor="#07c160" bindchange="onQualityChange" />
+    <text wx:if="{{source.format === 'png'}}" class="hint">透明 PNG 将保持透明，质量数值不影响 PNG 编码</text>
+  </view>
+
+  <button
+    class="primary-button process-button"
+    bindtap="compressImage"
+    loading="{{processing}}"
+    disabled="{{processing || !source}}"
+  >
+    {{processing ? '处理中' : '开始压缩'}}
+  </button>
+
+  <view wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</view>
+
+  <view wx:if="{{resultPath}}" class="card image-card result-card">
+    <text class="section-title">压缩结果</text>
+    <image class="preview-image" src="{{resultPath}}" mode="aspectFit" />
+    <view class="meta-row">
+      <text>原图 {{sourceSizeText}}</text>
+      <text>压缩后 {{resultSizeText}}</text>
+    </view>
+    <button class="primary-button save-button" bindtap="saveResult">保存到相册</button>
+    <ad-slot unit-id="{{resultBannerUnitId}}" />
+  </view>
+
+  <canvas id="processor-canvas" type="2d" class="canvas-host"></canvas>
 </view>

@@ -107,6 +107,41 @@ test('saveImageToAlbum returns cancelled when settings remain denied', async () 
   assert.equal(saved, false)
 })
 
+test('saveImageToAlbum treats a non-boolean initial permission as denied', async () => {
+  let modalShown = false
+  let saved = false
+  global.wx = {
+    getSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': 'false' } }) },
+    showModal(options) {
+      modalShown = true
+      options.success({ confirm: false })
+    },
+    saveImageToPhotosAlbum() { saved = true },
+  }
+
+  const { saveImageToAlbum } = require('../utils/image-save')
+  assert.deepEqual(await saveImageToAlbum('wxfile://tmp/processed.jpg'), { saved: false, cancelled: true })
+  assert.equal(modalShown, true)
+  assert.equal(saved, false)
+})
+
+test('saveImageToAlbum requires literal true after opening settings', async () => {
+  let saved = false
+  global.wx = {
+    getSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': false } }) },
+    showModal(options) { options.success({ confirm: true }) },
+    openSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': 'true' } }) },
+    saveImageToPhotosAlbum(options) {
+      saved = true
+      options.success({})
+    },
+  }
+
+  const { saveImageToAlbum } = require('../utils/image-save')
+  assert.deepEqual(await saveImageToAlbum('wxfile://tmp/processed.jpg'), { saved: false, cancelled: true })
+  assert.equal(saved, false)
+})
+
 test('saveImageToAlbum returns cancelled when privacy authorization is denied', async () => {
   let getSettingCalled = false
   global.wx = {

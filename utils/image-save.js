@@ -41,7 +41,8 @@ async function requestAlbumPermission() {
 
   try {
     const updated = await callWx('openSetting', {})
-    return Boolean(updated && updated.authSetting && updated.authSetting['scope.writePhotosAlbum'])
+    if (!updated || !updated.authSetting) return false
+    return updated.authSetting['scope.writePhotosAlbum'] === true
   } catch (error) {
     if (isCancelled(error)) return false
     throw error

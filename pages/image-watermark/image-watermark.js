@@ -37,20 +37,21 @@ function fitWatermarkText(context, text, width, height) {
   let availableWidth
   let measuredWidth
   do {
-    padding = Math.max(16, Math.round(fontSize * 0.8))
-    availableWidth = Math.max(0, width - padding * 2)
+    const formulaPadding = Math.max(16, Math.round(fontSize * 0.8))
+    const tinyCanvasPadding = Math.max(1, Math.floor(Math.min(width, height) / 2) - 1)
+    padding = Math.min(formulaPadding, tinyCanvasPadding)
+    availableWidth = Math.max(1, width - padding * 2)
     context.font = `${fontSize}px sans-serif`
     measuredWidth = context.measureText(text).width
     if (measuredWidth <= availableWidth || fontSize === 24) break
     fontSize -= 1
   } while (fontSize >= 24)
-  if (measuredWidth <= availableWidth) return { text, fontSize, padding, truncated: false, textWidth: measuredWidth }
+  if (measuredWidth <= availableWidth) return { text, fontSize, padding, availableWidth, truncated: false, textWidth: measuredWidth }
   const points = Array.from(text)
   let rendered = '…'
   while (points.length && context.measureText(`${points.join('')}…`).width > availableWidth) points.pop()
   if (context.measureText(`${points.join('')}…`).width <= availableWidth) rendered = `${points.join('')}…`
-  else if (context.measureText('…').width > availableWidth) rendered = ''
-  return { text: rendered, fontSize, padding, truncated: true, textWidth: context.measureText(rendered).width }
+  return { text: rendered, fontSize, padding, availableWidth, truncated: true, textWidth: Math.min(context.measureText(rendered).width, availableWidth) }
 }
 
 Page({
@@ -170,8 +171,11 @@ Page({
       context.textAlign = point.textAlign
       context.textBaseline = point.textBaseline
       context.globalAlpha = opacityPercentToAlpha(snapshot.opacity)
-      context.fillText(watermark.text, point.x, point.y)
-      context.globalAlpha = 1
+      try {
+        context.fillText(watermark.text, point.x, point.y, watermark.availableWidth)
+      } finally {
+        context.globalAlpha = 1
+      }
       if (!this.isCurrent(token)) return
       if (watermark.truncated) {
         this.setData({ warningMessage: '文字过长，已自动截断' })

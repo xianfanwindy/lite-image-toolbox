@@ -182,7 +182,7 @@ test('JPG renders a fitted white image and fixed text-watermark snapshot at DPR 
   await page.applyWatermark()
   assert.deepEqual(calls, [
     ['fit', 1000, 800, 4096], ['prepare', canvas, 1000, 800, 1], ['fill', 0, 0, 1000, 800], ['draw', { id: 'image' }, 0, 0, 1000, 800],
-    ['measure', 'Hello'], ['point', { width: 1000, height: 800, textWidth: 150, lineHeight: 44, padding: 35, position: 'bottom-right' }], ['alpha', 70], ['text', 'Hello', 968, 768], ['export', canvas, 1000, 800, 'jpg', 0.92],
+    ['measure', 'Hello'], ['point', { width: 1000, height: 800, textWidth: 150, lineHeight: 44, padding: 35, position: 'bottom-right' }], ['alpha', 70], ['text', 'Hello', 968, 768, 930], ['export', canvas, 1000, 800, 'jpg', 0.92],
   ])
   assert.equal(context.font, '44px sans-serif')
   assert.equal(context.fillStyle, '#ffffff')
@@ -226,6 +226,50 @@ test('long text shrinks then truncates by Unicode point before export while reta
   assert.equal(calls.length, 1)
   assert.match(calls[0][0], /…$/)
   assert.doesNotMatch(calls[0][0], /\ud83d(?!\ude00)/)
+})
+
+test('a tiny canvas still draws a nonempty ellipsis within its bounds and exports once', async () => {
+  const fills = []
+  let exports = 0
+  const context = {
+    measureText() { return { width: 100 } },
+    fillRect() {}, drawImage() {},
+    fillText: (...args) => fills.push(args),
+  }
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { exports += 1; return 'tiny.jpg' }, formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 20, height: 10 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: ({ width, height, padding }) => ({ x: width - padding, y: height - padding, textAlign: 'right', textBaseline: 'bottom' }) },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'tiny.jpg', width: 20, height: 10, format: 'jpg' })
+  page.data.watermarkText = '很长的文字'
+  await page.applyWatermark()
+  assert.equal(fills.length, 1)
+  assert.match(fills[0][0], /…$/)
+  assert.ok(fills[0][1] >= 0 && fills[0][1] <= 20)
+  assert.ok(fills[0][2] >= 0 && fills[0][2] <= 10)
+  assert.ok(fills[0][3] > 0 && fills[0][3] <= 12)
+  assert.equal(exports, 1)
+})
+
+test('a fillText failure restores canvas alpha before handling the processing error', async () => {
+  let exports = 0
+  const context = {
+    measureText: () => ({ width: 10 }), fillRect() {}, drawImage() {},
+    fillText() { throw new Error('draw failed') },
+  }
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { exports += 1; return 'never.jpg' }, formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 100, height: 100 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => ({ x: 16, y: 16, textAlign: 'left', textBaseline: 'top' }) },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'source.jpg', width: 100, height: 100, format: 'jpg' })
+  page.data.watermarkText = 'x'
+  await page.applyWatermark()
+  assert.equal(context.globalAlpha, 1)
+  assert.equal(exports, 0)
+  assert.equal(page.data.resultPath, '')
+  assert.equal(page.data.errorMessage, '处理失败，请重试或更换图片')
 })
 
 test('stale or unloaded work cannot update state and releases only its canvas ownership', async () => {

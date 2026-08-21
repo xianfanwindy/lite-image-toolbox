@@ -19,6 +19,12 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function createDeferred() {
+  let resolve
+  const promise = new Promise((next) => { resolve = next })
+  return { promise, resolve }
+}
+
 function installModule(path, exports) {
   if (!originals.has(path)) originals.set(path, require.cache[path])
   require.cache[path] = { id: path, filename: path, loaded: true, exports }
@@ -245,4 +251,87 @@ test('saveResult cancellation is silent and an unload blocks late updates', asyn
   assert.equal(page.data.resultPath, 'output.jpg')
   assert.equal(page._canvas, null)
   assert.equal(page._image, null)
+})
+
+test('a cancelled selection does not invalidate an in-flight compression', async () => {
+  const canvasReady = createDeferred()
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => null },
+    canvas: {
+      getCanvas: () => canvasReady.promise,
+      loadCanvasImage: async () => ({}),
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async () => 'output.jpg',
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const compression = page.compressImage()
+  await page.chooseImage()
+  canvasReady.resolve({})
+  await compression
+  assert.equal(page.data.processing, false)
+  assert.equal(page.data.resultPath, 'output.jpg')
+})
+
+test('unload prevents late canvas and image references after canvas resolution', async () => {
+  const canvasReady = createDeferred()
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    canvas: {
+      getCanvas: () => canvasReady.promise,
+      loadCanvasImage: async () => ({ id: 'image' }),
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async () => 'output.jpg',
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+  })
+  const page = createInstance(definition)
+  let lateSetDataCount = 0
+  const setData = page.setData
+  page.setData = (patch) => {
+    if (page._unloaded) lateSetDataCount += 1
+    setData(patch)
+  }
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const compression = page.compressImage()
+  page.onUnload()
+  canvasReady.resolve({ id: 'canvas' })
+  await compression
+  assert.equal(page._canvas, null)
+  assert.equal(page._image, null)
+  assert.equal(lateSetDataCount, 0)
+})
+
+test('a successful replacement invalidates an older compression result', async () => {
+  const canvasReady = createDeferred()
+  const replacement = { path: 'new.png', width: 5, height: 6, size: 12, type: 'png' }
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: {
+      getCanvas: () => canvasReady.promise,
+      loadCanvasImage: async () => ({}),
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async () => 'old-output.jpg',
+      formatBytes: (size) => `${size} B`,
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'png', shouldFillWhite: () => false },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'old.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  const compression = page.compressImage()
+  await page.chooseImage()
+  canvasReady.resolve({})
+  await compression
+  assert.deepEqual(page.data.source, { ...replacement, format: 'png' })
+  assert.equal(page.data.resultPath, '')
+  assert.equal(page.data.processing, false)
 })

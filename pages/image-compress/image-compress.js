@@ -46,17 +46,27 @@ Page({
     return !this._unloaded && this._operationId === token
   },
 
+  isSelectionCurrent(token) {
+    return !this._unloaded && this._selectionId === token
+  },
+
   nextOperation() {
     this._operationId = (this._operationId || 0) + 1
     return this._operationId
   },
 
+  nextSelection() {
+    this._selectionId = (this._selectionId || 0) + 1
+    return this._selectionId
+  },
+
   async chooseImage() {
-    const token = this.nextOperation()
+    const token = this.nextSelection()
     try {
       const picked = await chooseSingleImage()
-      if (!picked || !this.isCurrent(token)) return
+      if (!picked || !this.isSelectionCurrent(token)) return
       const source = { ...picked, format: normalizeImageFormat(picked.type, picked.path) }
+      this.nextOperation()
       this.setData({
         source,
         processing: false,
@@ -67,7 +77,7 @@ Page({
         errorMessage: '',
       })
     } catch (error) {
-      if (this.isCurrent(token)) this.setData({ errorMessage: '选择图片失败，请重试' })
+      if (this.isSelectionCurrent(token)) this.setData({ errorMessage: '选择图片失败，请重试' })
     }
   },
 
@@ -89,8 +99,10 @@ Page({
     try {
       const target = fitWithinSide(source.width, source.height, 4096)
       const canvas = await getCanvas(this, '#processor-canvas')
+      if (!this.isCurrent(token)) return
       this._canvas = canvas
       const image = await loadCanvasImage(canvas, source.path)
+      if (!this.isCurrent(token)) return
       this._image = image
       const prepared = prepareCanvas(canvas, target.width, target.height, 1)
       if (shouldFillWhite(source.format)) {
@@ -99,6 +111,7 @@ Page({
       }
       prepared.context.drawImage(image, 0, 0, target.width, target.height)
       const resultPath = await exportCanvas(canvas, target.width, target.height, source.format, this.data.quality / 100)
+      if (!this.isCurrent(token)) return
       if (!resultPath) throw new Error('Canvas export did not return a temporary file')
       const resultSize = await getFileSize(resultPath)
       if (!this.isCurrent(token)) return
@@ -143,6 +156,7 @@ Page({
   onUnload() {
     this._unloaded = true
     this.nextOperation()
+    this.nextSelection()
     this._canvas = null
     this._image = null
   },

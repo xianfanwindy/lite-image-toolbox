@@ -27,8 +27,45 @@ function clearResult(page) {
   page.setData({ resultPath: '', resultSize: 0, resultSizeText: '', warningMessage: '', errorMessage: '' })
 }
 
-function trimCodePoints(value) {
-  return Array.from(value === undefined || value === null ? '' : String(value)).slice(0, 30).join('')
+function isExtend(character) {
+  const point = character.codePointAt(0)
+  return (point >= 0x0300 && point <= 0x036f)
+    || (point >= 0x1ab0 && point <= 0x1aff)
+    || (point >= 0x1dc0 && point <= 0x1dff)
+    || (point >= 0x20d0 && point <= 0x20ff)
+    || (point >= 0xfe00 && point <= 0xfe0f)
+    || (point >= 0xfe20 && point <= 0xfe2f)
+    || (point >= 0xe0100 && point <= 0xe01ef)
+    || (point >= 0x1f3fb && point <= 0x1f3ff)
+}
+
+function splitGraphemes(value) {
+  const points = Array.from(value === undefined || value === null ? '' : String(value))
+  const graphemes = []
+  let index = 0
+  while (index < points.length) {
+    let grapheme = points[index]
+    index += 1
+    while (index < points.length && isExtend(points[index])) {
+      grapheme += points[index]
+      index += 1
+    }
+    while (points[index] === '\u200d' && index + 1 < points.length) {
+      grapheme += points[index]
+      grapheme += points[index + 1]
+      index += 2
+      while (index < points.length && isExtend(points[index])) {
+        grapheme += points[index]
+        index += 1
+      }
+    }
+    graphemes.push(grapheme)
+  }
+  return graphemes
+}
+
+function trimGraphemes(value) {
+  return splitGraphemes(value).slice(0, 30).join('')
 }
 
 function fitWatermarkText(context, text, width, height) {
@@ -37,17 +74,17 @@ function fitWatermarkText(context, text, width, height) {
   let availableWidth
   let measuredWidth
   do {
-    const formulaPadding = Math.max(16, Math.round(fontSize * 0.8))
-    const tinyCanvasPadding = Math.max(1, Math.floor(Math.min(width, height) / 2) - 1)
-    padding = Math.min(formulaPadding, tinyCanvasPadding)
-    availableWidth = Math.max(1, width - padding * 2)
+    padding = Math.max(16, Math.round(fontSize * 0.8))
+    availableWidth = width - padding * 2
     context.font = `${fontSize}px sans-serif`
     measuredWidth = context.measureText(text).width
-    if (measuredWidth <= availableWidth || fontSize === 24) break
+    if (fontSize + padding * 2 <= height && measuredWidth <= availableWidth) break
+    if (fontSize === 24) break
     fontSize -= 1
   } while (fontSize >= 24)
+  if (availableWidth <= 0 || fontSize + padding * 2 > height) return null
   if (measuredWidth <= availableWidth) return { text, fontSize, padding, availableWidth, truncated: false, textWidth: measuredWidth }
-  const points = Array.from(text)
+  const points = splitGraphemes(text)
   let rendered = '…'
   while (points.length && context.measureText(`${points.join('')}…`).width > availableWidth) points.pop()
   if (context.measureText(`${points.join('')}…`).width <= availableWidth) rendered = `${points.join('')}…`
@@ -97,7 +134,7 @@ Page({
 
   onTextInput(event) {
     if (this.data.processing) return
-    const watermarkText = trimCodePoints(event && event.detail && event.detail.value)
+    const watermarkText = trimGraphemes(event && event.detail && event.detail.value)
     if (watermarkText === this.data.watermarkText) return
     clearResult(this)
     this.setData({ watermarkText })
@@ -135,7 +172,7 @@ Page({
       wx.showToast({ title: '请先选择图片', icon: 'none' })
       return
     }
-    const watermarkText = trimCodePoints(this.data.watermarkText).trim()
+    const watermarkText = trimGraphemes(this.data.watermarkText).trim()
     if (!watermarkText) {
       this.setData({ errorMessage: '请输入水印文字' })
       return
@@ -160,12 +197,16 @@ Page({
       if (!this.isCurrent(token)) return
       const prepared = prepareCanvas(canvas, target.width, target.height, 1)
       const context = prepared.context
+      const watermark = fitWatermarkText(context, snapshot.watermarkText, target.width, target.height)
+      if (!watermark) {
+        this.setData({ warningMessage: '', errorMessage: '图片尺寸过小，无法添加水印' })
+        return
+      }
       if (shouldFillWhite(snapshot.source.format)) {
         context.fillStyle = '#ffffff'
         context.fillRect(0, 0, target.width, target.height)
       }
       context.drawImage(image, 0, 0, target.width, target.height)
-      const watermark = fitWatermarkText(context, snapshot.watermarkText, target.width, target.height)
       const point = getWatermarkPoint({ width: target.width, height: target.height, textWidth: watermark.textWidth, lineHeight: watermark.fontSize, padding: watermark.padding, position: snapshot.position })
       context.fillStyle = snapshot.color
       context.textAlign = point.textAlign
@@ -177,19 +218,22 @@ Page({
         context.globalAlpha = 1
       }
       if (!this.isCurrent(token)) return
-      if (watermark.truncated) {
-        this.setData({ warningMessage: '文字过长，已自动截断' })
-        wx.showToast({ title: '文字过长，已自动截断', icon: 'none' })
-      }
       const resultPath = await exportCanvas(canvas, target.width, target.height, snapshot.source.format, snapshot.source.format === 'jpg' ? 0.92 : undefined)
       if (!this.isCurrent(token)) return
       if (!resultPath) throw new Error('Canvas export did not return a temporary file')
       const resultSize = await getFileSize(resultPath)
       if (!this.isCurrent(token)) return
-      this.setData({ resultPath, resultSize, resultSizeText: resultSize > 0 ? formatBytes(resultSize) : '大小暂不可用', errorMessage: '' })
+      this.setData({
+        resultPath,
+        resultSize,
+        resultSizeText: resultSize > 0 ? formatBytes(resultSize) : '大小暂不可用',
+        warningMessage: watermark.truncated ? '文字过长，已自动截断' : '',
+        errorMessage: '',
+      })
+      if (watermark.truncated) wx.showToast({ title: '文字过长，已自动截断', icon: 'none' })
     } catch (error) {
       if (!this.isCurrent(token)) return
-      this.setData({ resultPath: '', resultSize: 0, resultSizeText: '', errorMessage: isCanvasTooLarge(error) ? '图片尺寸过大，请选择较小的图片' : '处理失败，请重试或更换图片' })
+      this.setData({ resultPath: '', resultSize: 0, resultSizeText: '', warningMessage: '', errorMessage: isCanvasTooLarge(error) ? '图片尺寸过大，请选择较小的图片' : '处理失败，请重试或更换图片' })
     } finally {
       this.releaseCanvas(token, canvas)
       if (this.isCurrent(token)) {

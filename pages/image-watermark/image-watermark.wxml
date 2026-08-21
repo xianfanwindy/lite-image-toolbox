@@ -16,18 +16,18 @@
     <view class="field">
       <text class="field-label">颜色</text>
       <view class="color-grid">
-        <button class="color-button {{color === '#ffffff' ? 'selected' : ''}}" data-color="#ffffff" bindtap="selectColor" disabled="{{processing}}"><view class="swatch white"></view><text>白色</text></button>
-        <button class="color-button {{color === '#000000' ? 'selected' : ''}}" data-color="#000000" bindtap="selectColor" disabled="{{processing}}"><view class="swatch black"></view><text>黑色</text></button>
+        <button class="color-button {{color === '#ffffff' ? 'selected' : ''}}" data-color="#ffffff" aria-role="radio" aria-checked="{{color === '#ffffff'}}" aria-label="白色水印" bindtap="selectColor" disabled="{{processing}}"><view class="swatch white"></view><text>白色</text></button>
+        <button class="color-button {{color === '#000000' ? 'selected' : ''}}" data-color="#000000" aria-role="radio" aria-checked="{{color === '#000000'}}" aria-label="黑色水印" bindtap="selectColor" disabled="{{processing}}"><view class="swatch black"></view><text>黑色</text></button>
       </view>
     </view>
     <view class="field">
       <text class="field-label">位置</text>
       <view class="position-grid">
-        <button class="position-button {{position === 'top-left' ? 'selected' : ''}}" data-position="top-left" bindtap="selectPosition" disabled="{{processing}}">左上</button>
-        <button class="position-button {{position === 'top-right' ? 'selected' : ''}}" data-position="top-right" bindtap="selectPosition" disabled="{{processing}}">右上</button>
-        <button class="position-button {{position === 'center' ? 'selected' : ''}}" data-position="center" bindtap="selectPosition" disabled="{{processing}}">居中</button>
-        <button class="position-button {{position === 'bottom-left' ? 'selected' : ''}}" data-position="bottom-left" bindtap="selectPosition" disabled="{{processing}}">左下</button>
-        <button class="position-button {{position === 'bottom-right' ? 'selected' : ''}}" data-position="bottom-right" bindtap="selectPosition" disabled="{{processing}}">右下</button>
+        <button class="position-button {{position === 'top-left' ? 'selected' : ''}}" data-position="top-left" aria-role="radio" aria-checked="{{position === 'top-left'}}" aria-label="水印位置左上" bindtap="selectPosition" disabled="{{processing}}">左上</button>
+        <button class="position-button {{position === 'top-right' ? 'selected' : ''}}" data-position="top-right" aria-role="radio" aria-checked="{{position === 'top-right'}}" aria-label="水印位置右上" bindtap="selectPosition" disabled="{{processing}}">右上</button>
+        <button class="position-button {{position === 'center' ? 'selected' : ''}}" data-position="center" aria-role="radio" aria-checked="{{position === 'center'}}" aria-label="水印位置居中" bindtap="selectPosition" disabled="{{processing}}">居中</button>
+        <button class="position-button {{position === 'bottom-left' ? 'selected' : ''}}" data-position="bottom-left" aria-role="radio" aria-checked="{{position === 'bottom-left'}}" aria-label="水印位置左下" bindtap="selectPosition" disabled="{{processing}}">左下</button>
+        <button class="position-button {{position === 'bottom-right' ? 'selected' : ''}}" data-position="bottom-right" aria-role="radio" aria-checked="{{position === 'bottom-right'}}" aria-label="水印位置右下" bindtap="selectPosition" disabled="{{processing}}">右下</button>
       </view>
     </view>
     <view class="field">

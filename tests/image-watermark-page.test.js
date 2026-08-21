@@ -132,6 +132,18 @@ test('parameter handlers normalize values, retain at most 30 Unicode code points
   assert.deepEqual(page.data, before)
 })
 
+test('text input keeps 30 complete grapheme clusters for family emoji and combining marks', () => {
+  const { definition } = loadPage()
+  const page = createInstance(definition)
+  const family = '👨‍👩‍👧‍👦'
+  page.onTextInput({ detail: { value: family.repeat(31) } })
+  assert.equal(page.data.watermarkText, family.repeat(30))
+  assert.doesNotMatch(page.data.watermarkText, /‍$/)
+  page.onTextInput({ detail: { value: 'e\u0301'.repeat(31) } })
+  assert.equal(page.data.watermarkText, 'e\u0301'.repeat(30))
+  assert.doesNotMatch(page.data.watermarkText, /e$/)
+})
+
 test('applyWatermark requires source and nonblank trimmed text before canvas access', async () => {
   let canvasCalled = false
   const { definition, wx } = loadPage({ canvas: { getCanvas: async () => { canvasCalled = true } } })
@@ -181,8 +193,8 @@ test('JPG renders a fitted white image and fixed text-watermark snapshot at DPR 
   page.data.watermarkText = ' Hello '
   await page.applyWatermark()
   assert.deepEqual(calls, [
-    ['fit', 1000, 800, 4096], ['prepare', canvas, 1000, 800, 1], ['fill', 0, 0, 1000, 800], ['draw', { id: 'image' }, 0, 0, 1000, 800],
-    ['measure', 'Hello'], ['point', { width: 1000, height: 800, textWidth: 150, lineHeight: 44, padding: 35, position: 'bottom-right' }], ['alpha', 70], ['text', 'Hello', 968, 768, 930], ['export', canvas, 1000, 800, 'jpg', 0.92],
+    ['fit', 1000, 800, 4096], ['prepare', canvas, 1000, 800, 1], ['measure', 'Hello'], ['fill', 0, 0, 1000, 800], ['draw', { id: 'image' }, 0, 0, 1000, 800],
+    ['point', { width: 1000, height: 800, textWidth: 150, lineHeight: 44, padding: 35, position: 'bottom-right' }], ['alpha', 70], ['text', 'Hello', 968, 768, 930], ['export', canvas, 1000, 800, 'jpg', 0.92],
   ])
   assert.equal(context.font, '44px sans-serif')
   assert.equal(context.fillStyle, '#ffffff')
@@ -199,14 +211,14 @@ test('PNG remains transparent and exports without JPG quality', async () => {
   const canvas = {}
   const { definition } = loadPage({
     canvas: { getCanvas: async () => canvas, loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async (...args) => { calls.push(args); return 'out.png' }, formatBytes: () => '2 KB' },
-    math: { fitWithinSide: () => ({ width: 20, height: 10 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => ({ x: 1, y: 1, textAlign: 'left', textBaseline: 'top' }) },
+    math: { fitWithinSide: () => ({ width: 100, height: 100 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => ({ x: 1, y: 1, textAlign: 'left', textBaseline: 'top' }) },
     format: { normalizeImageFormat: () => 'png', shouldFillWhite: () => false },
   })
   const page = createInstance(definition)
-  setSource(page, { path: 'source.png', width: 20, height: 10, format: 'png' })
+  setSource(page, { path: 'source.png', width: 100, height: 100, format: 'png' })
   page.data.watermarkText = 'P'
   await page.applyWatermark()
-  assert.deepEqual(calls, ['draw', 'text', [canvas, 20, 10, 'png', undefined]])
+  assert.deepEqual(calls, ['draw', 'text', [canvas, 100, 100, 'png', undefined]])
 })
 
 test('long text shrinks then truncates by Unicode point before export while retaining its input', async () => {
@@ -228,7 +240,7 @@ test('long text shrinks then truncates by Unicode point before export while reta
   assert.doesNotMatch(calls[0][0], /\ud83d(?!\ude00)/)
 })
 
-test('a tiny canvas still draws a nonempty ellipsis within its bounds and exports once', async () => {
+test('too-small canvases reject every requested position before text drawing or export', async () => {
   const fills = []
   let exports = 0
   const context = {
@@ -238,18 +250,92 @@ test('a tiny canvas still draws a nonempty ellipsis within its bounds and export
   }
   const { definition } = loadPage({
     canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { exports += 1; return 'tiny.jpg' }, formatBytes: () => '2 KB' },
-    math: { fitWithinSide: () => ({ width: 20, height: 10 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: ({ width, height, padding }) => ({ x: width - padding, y: height - padding, textAlign: 'right', textBaseline: 'bottom' }) },
+    math: { fitWithinSide: () => ({ width: 20, height: 10 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => { throw new Error('must not position') } },
   })
   const page = createInstance(definition)
   setSource(page, { path: 'tiny.jpg', width: 20, height: 10, format: 'jpg' })
   page.data.watermarkText = '很长的文字'
+  for (const position of ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right']) {
+    page.data.position = position
+    await page.applyWatermark()
+    assert.equal(page.data.errorMessage, '图片尺寸过小，无法添加水印')
+    assert.equal(page.data.warningMessage, '')
+  }
+  assert.equal(fills.length, 0)
+  assert.equal(exports, 0)
+})
+
+test('a one-pixel-tall wide canvas rejects before text drawing or export', async () => {
+  let fills = 0
+  let exports = 0
+  const context = { measureText: () => ({ width: 10 }), fillRect() {}, drawImage() {}, fillText() { fills += 1 } }
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { exports += 1; return 'wide.jpg' }, formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 4096, height: 1 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => { throw new Error('must not position') } },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'wide.jpg', width: 4096, height: 1, format: 'jpg' })
+  page.data.watermarkText = 'x'
+  await page.applyWatermark()
+  assert.equal(page.data.errorMessage, '图片尺寸过小，无法添加水印')
+  assert.equal(fills, 0)
+  assert.equal(exports, 0)
+})
+
+test('a sufficiently tall extreme-aspect canvas still draws with a positive max width', async () => {
+  const fills = []
+  let exports = 0
+  const context = { measureText: () => ({ width: 10 }), fillRect() {}, drawImage() {}, fillText: (...args) => fills.push(args) }
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { exports += 1; return 'valid.jpg' }, formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 4096, height: 100 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: ({ width, height, padding }) => ({ x: width - padding, y: height - padding, textAlign: 'right', textBaseline: 'bottom' }) },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'valid.jpg', width: 4096, height: 100, format: 'jpg' })
+  page.data.watermarkText = 'x'
   await page.applyWatermark()
   assert.equal(fills.length, 1)
-  assert.match(fills[0][0], /…$/)
-  assert.ok(fills[0][1] >= 0 && fills[0][1] <= 20)
-  assert.ok(fills[0][2] >= 0 && fills[0][2] <= 10)
-  assert.ok(fills[0][3] > 0 && fills[0][3] <= 12)
+  assert.ok(fills[0][3] > 0)
   assert.equal(exports, 1)
+})
+
+test('grapheme-safe truncation keeps full family and combining clusters', async () => {
+  const calls = []
+  const family = '👨‍👩‍👧‍👦'
+  const context = {
+    measureText(text) { return { width: text === `${family}…` || text === 'e\u0301…' ? 10 : 1000 } },
+    fillRect() {}, drawImage() {}, fillText: (...args) => calls.push(args),
+  }
+  const { definition } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => 'output.jpg', formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 100, height: 100 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => ({ x: 16, y: 16, textAlign: 'left', textBaseline: 'top' }) },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'source.jpg', width: 100, height: 100, format: 'jpg' })
+  page.data.watermarkText = family.repeat(30)
+  await page.applyWatermark()
+  assert.equal(calls[0][0], `${family}…`)
+  assert.doesNotMatch(calls[0][0], /‍$/)
+  page.data.watermarkText = 'e\u0301'.repeat(30)
+  await page.applyWatermark()
+  assert.equal(calls[1][0], 'e\u0301…')
+  assert.doesNotMatch(calls[1][0], /e…$/)
+})
+
+test('failed export after a truncated fit does not show a truncation warning', async () => {
+  const context = { measureText: () => ({ width: 1000 }), fillRect() {}, drawImage() {}, fillText() {} }
+  const { definition, wx } = loadPage({
+    canvas: { getCanvas: async () => ({}), loadCanvasImage: async () => ({}), prepareCanvas: () => ({ context }), exportCanvas: async () => { throw new Error('export failed') }, formatBytes: () => '2 KB' },
+    math: { fitWithinSide: () => ({ width: 100, height: 100 }), opacityPercentToAlpha: () => 0.7, getWatermarkPoint: () => ({ x: 16, y: 16, textAlign: 'left', textBaseline: 'top' }) },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'source.jpg', width: 100, height: 100, format: 'jpg' })
+  page.data.watermarkText = 'long watermark'
+  await page.applyWatermark()
+  assert.equal(page.data.warningMessage, '')
+  assert.equal(page.data.resultPath, '')
+  assert.equal(page.data.processing, false)
+  assert.deepEqual(wx.toasts, [])
 })
 
 test('a fillText failure restores canvas alpha before handling the processing error', async () => {
@@ -327,6 +413,11 @@ test('watermark WXML is local fixed-position UI with one ad slot and accessible 
   assert.match(wxml, /maxlength="30"/)
   assert.match(wxml, /aria-label="水印文字"/)
   assert.match(wxml, /aria-label="水印透明度"/)
+  assert.match(wxml, /data-color="#ffffff"[^>]*aria-role="radio"[^>]*aria-checked="\{\{color === '#ffffff'\}\}"[^>]*aria-label="白色水印"/)
+  assert.match(wxml, /data-color="#000000"[^>]*aria-role="radio"[^>]*aria-checked="\{\{color === '#000000'\}\}"[^>]*aria-label="黑色水印"/)
+  ;['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'].forEach((position) => {
+    assert.match(wxml, new RegExp(`data-position="${position}"[^>]*aria-role="radio"[^>]*aria-checked="\\{\\{position === '${position}'\\}\\}"[^>]*aria-label="`))
+  })
   assert.match(wxml, /<ad-slot[^>]*ad-unit-id="\{\{resultBannerUnitId\}\}"/)
   assert.doesNotMatch(wxml, /logo|在线|素材|repeat|tile|rotate|font|https?:/i)
 })

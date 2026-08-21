@@ -37,9 +37,7 @@ function targetText(width, height) {
 }
 
 function clearResult(page) {
-  page.nextSave()
-  page._saving = false
-  page.setData({ resultPath: '', resultSize: 0, resultSizeText: '', errorMessage: '', saving: false })
+  page.setData({ resultPath: '', resultSize: 0, resultSizeText: '', errorMessage: '' })
 }
 
 function getTarget(source, mode, customWidth, customHeight) {
@@ -121,10 +119,8 @@ Page({
       const previousCanvas = this._canvas
       const previousOwnerId = this._canvasOwnerId
       this.nextOperation()
-      this.nextSave()
       this.releaseCanvas(previousOwnerId, previousCanvas)
       this._resizing = false
-      this._saving = false
       this.setData({
         source,
         mode: 'original',
@@ -133,7 +129,6 @@ Page({
         lockAspectRatio: true,
         targetSizeText: targetText(source.width, source.height),
         processing: false,
-        saving: false,
         sourceSizeText: formatBytes(source.size),
         resultPath: '',
         resultSize: 0,
@@ -189,7 +184,34 @@ Page({
 
   onLockChange(event) {
     if (this.data.processing) return
-    this.setData({ lockAspectRatio: Boolean(event && event.detail && event.detail.value) })
+    const lockAspectRatio = Boolean(event && event.detail && event.detail.value)
+    let customWidth = this.data.customWidth
+    let customHeight = this.data.customHeight
+    if (lockAspectRatio && this.data.mode === 'custom' && this.data.source) {
+      const width = asInteger(Number(customWidth))
+      const height = asInteger(Number(customHeight))
+      try {
+        const size = width
+          ? resolveLockedSize(this.data.source.width, this.data.source.height, 'width', width)
+          : height
+            ? resolveLockedSize(this.data.source.width, this.data.source.height, 'height', height)
+            : null
+        if (size) {
+          customWidth = String(size.width)
+          customHeight = String(size.height)
+        }
+      } catch (error) {
+        // 保留用户输入，让尺寸校验提示具体问题。
+      }
+    }
+    const target = getTarget(this.data.source, 'custom', customWidth, customHeight)
+    clearResult(this)
+    this.setData({
+      lockAspectRatio,
+      customWidth,
+      customHeight,
+      targetSizeText: validTarget(target) ? targetText(target.width, target.height) : '',
+    })
   },
 
   async resizeImage() {

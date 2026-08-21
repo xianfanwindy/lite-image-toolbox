@@ -36,7 +36,7 @@
       </view>
       <view class="lock-row">
         <text>锁定宽高比例</text>
-        <switch checked="{{lockAspectRatio}}" color="#07c160" bindchange="onLockChange" disabled="{{processing}}" />
+        <switch checked="{{lockAspectRatio}}" color="#07c160" bindchange="onLockChange" disabled="{{processing}}" aria-label="锁定宽高比" />
       </view>
       <text wx:if="{{!lockAspectRatio}}" class="warning">关闭比例锁后图片可能变形</text>
     </view>

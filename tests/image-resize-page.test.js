@@ -142,6 +142,42 @@ test('selection failures remain recoverable and modes/inputs invalidate stale ou
   assert.equal(page.data.customWidth, '200')
 })
 
+test('relocking custom dimensions recalculates from a valid current dimension', () => {
+  const { definition } = loadPage({
+    math: {
+      resizeByPercent: () => ({ width: 1, height: 1 }),
+      resolveLockedSize: (width, height, changed, value) => changed === 'width'
+        ? { width: Number(value), height: Math.round(Number(value) * height / width) }
+        : { width: Math.round(Number(value) * width / height), height: Number(value) },
+    },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'source.jpg', width: 4000, height: 3000, size: 1, format: 'jpg' })
+  page.selectMode({ currentTarget: { dataset: { mode: 'custom' } } })
+  page.onLockChange({ detail: { value: false } })
+  page.onWidthInput({ detail: { value: '1000' } })
+  page.onHeightInput({ detail: { value: '1000' } })
+  page.data.resultPath = 'old.jpg'
+  page.onLockChange({ detail: { value: true } })
+  assert.equal(page.data.lockAspectRatio, true)
+  assert.equal(page.data.customWidth, '1000')
+  assert.equal(page.data.customHeight, '750')
+  assert.equal(page.data.targetSizeText, '1000 × 750')
+  assert.equal(page.data.resultPath, '')
+  page.onLockChange({ detail: { value: false } })
+  page.onWidthInput({ detail: { value: '' } })
+  page.onHeightInput({ detail: { value: '600' } })
+  page.onLockChange({ detail: { value: true } })
+  assert.equal(page.data.customWidth, '800')
+  assert.equal(page.data.customHeight, '600')
+  page.onLockChange({ detail: { value: false } })
+  page.onWidthInput({ detail: { value: '' } })
+  page.onHeightInput({ detail: { value: '' } })
+  page.onLockChange({ detail: { value: true } })
+  assert.equal(page.data.lockAspectRatio, true)
+  assert.equal(page.data.targetSizeText, '')
+})
+
 test('resizeImage uses 50 percent target and JPG full-frame white export', async () => {
   const calls = []
   const canvas = { width: 5, height: 5 }
@@ -281,12 +317,34 @@ test('saveResult uses exact result once, cancellation is silent, and invalid res
   assert.equal(page.data.resultPath, '')
 })
 
+test('result invalidation keeps the active save mutex until its physical save settles', async () => {
+  const saving = createDeferred()
+  const paths = []
+  const { definition } = loadPage({ save: { saveImageToAlbum: (filePath) => { paths.push(filePath); return saving.promise } } })
+  const page = createInstance(definition)
+  setSource(page)
+  page.data.resultPath = 'old.jpg'
+  const first = page.saveResult()
+  page.selectMode({ currentTarget: { dataset: { mode: 'half' } } })
+  page.data.resultPath = 'new.jpg'
+  const blocked = page.saveResult()
+  assert.deepEqual(paths, ['old.jpg'])
+  assert.equal(page.data.saving, true)
+  assert.equal(page._saving, true)
+  saving.resolve({ saved: true, cancelled: false })
+  await Promise.all([first, blocked])
+  assert.equal(page.data.saving, false)
+  await page.saveResult()
+  assert.deepEqual(paths, ['old.jpg', 'new.jpg'])
+})
+
 test('resize WXML exposes local controls and no unsupported modes', () => {
   const wxml = fs.readFileSync(path.join(__dirname, '../pages/image-resize/image-resize.wxml'), 'utf8')
   assert.match(wxml, /关闭比例锁后图片可能变形/)
   assert.match(wxml, /id="processor-canvas" type="2d"/)
   assert.match(wxml, /disabled="\{\{processing\}\}"/)
   assert.match(wxml, /loading="\{\{saving\}\}" disabled="\{\{saving\}\}"/)
+  assert.match(wxml, /<switch[^>]*aria-label="锁定宽高比"/)
   assert.doesNotMatch(wxml, /passport|template|cover|contain|stretch|upload/i)
   assert.ok(wxml.indexOf('wx:if="{{errorMessage}}"') < wxml.indexOf('class="primary-button process-button"'))
 })

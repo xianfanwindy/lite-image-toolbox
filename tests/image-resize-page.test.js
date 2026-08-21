@@ -19,8 +19,9 @@ const originals = new Map()
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
 function createDeferred() {
   let resolve
-  const promise = new Promise((next) => { resolve = next })
-  return { promise, resolve }
+  let reject
+  const promise = new Promise((next, fail) => { resolve = next; reject = fail })
+  return { promise, resolve, reject }
 }
 function installModule(modulePath, exports) {
   if (!originals.has(modulePath)) originals.set(modulePath, require.cache[modulePath])
@@ -334,6 +335,33 @@ test('result invalidation keeps the active save mutex until its physical save se
   saving.resolve({ saved: true, cancelled: false })
   await Promise.all([first, blocked])
   assert.equal(page.data.saving, false)
+  await page.saveResult()
+  assert.deepEqual(paths, ['old.jpg', 'new.jpg'])
+})
+
+test('an invalidated failed save cannot overwrite a newer result but still releases its mutex', async () => {
+  const saving = createDeferred()
+  const paths = []
+  const { definition } = loadPage({
+    save: {
+      saveImageToAlbum: (filePath) => {
+        paths.push(filePath)
+        return paths.length === 1 ? saving.promise : Promise.resolve({ saved: false, cancelled: true })
+      },
+    },
+  })
+  const page = createInstance(definition)
+  setSource(page)
+  page.data.resultPath = 'old.jpg'
+  const first = page.saveResult()
+  page.selectMode({ currentTarget: { dataset: { mode: 'half' } } })
+  page.data.resultPath = 'new.jpg'
+  saving.reject(new Error('old save failed'))
+  await first
+  assert.equal(page.data.resultPath, 'new.jpg')
+  assert.equal(page.data.errorMessage, '')
+  assert.equal(page.data.saving, false)
+  assert.equal(page._saving, false)
   await page.saveResult()
   assert.deepEqual(paths, ['old.jpg', 'new.jpg'])
 })

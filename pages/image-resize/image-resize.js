@@ -224,7 +224,13 @@ Page({
     let canvas
     try {
       canvas = await getCanvas(this, '#processor-canvas')
-      if (!this.isCurrent(token)) return
+      if (!this.isCurrent(token)) {
+        if (this._unloaded && canvas) {
+          canvas.width = 1
+          canvas.height = 1
+        }
+        return
+      }
       this._canvas = canvas
       this._canvasOwnerId = token
       const image = await loadCanvasImage(canvas, operationSource.path)

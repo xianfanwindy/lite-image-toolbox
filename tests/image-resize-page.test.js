@@ -165,19 +165,32 @@ test('resizeImage uses 50 percent target and JPG full-frame white export', async
   assert.equal(canvas.height, 1)
 })
 
-test('PNG stays transparent and custom validation prevents canvas work', async () => {
-  let canvasCalls = 0
-  const { definition } = loadPage({ canvas: { getCanvas: async () => { canvasCalls += 1 } } })
+test('PNG stays transparent, draws the full target, and export omits quality', async () => {
+  const calls = []
+  const canvas = { width: 9, height: 9 }
+  const context = {
+    fillRect: (...args) => calls.push(['fill', ...args]),
+    drawImage: (...args) => calls.push(['draw', ...args]),
+  }
+  const { definition } = loadPage({
+    canvas: {
+      getCanvas: async () => canvas,
+      loadCanvasImage: async () => ({ id: 'png-image' }),
+      prepareCanvas: (ignoredCanvas, width, height, ratio) => { calls.push(['prepare', width, height, ratio]); return { context } },
+      exportCanvas: async (...args) => { calls.push(['export', ...args]); return 'output.png' },
+      formatBytes: () => '2 KB',
+    },
+    format: { normalizeImageFormat: () => 'png', shouldFillWhite: () => false },
+  })
   const page = createInstance(definition)
-  setSource(page, { path: 'source.png', width: 5000, height: 100, format: 'png' })
+  setSource(page, { path: 'source.png', width: 20, height: 10, format: 'png' })
   await page.resizeImage()
-  assert.equal(canvasCalls, 0)
-  assert.match(page.data.errorMessage, /宽高必须是 1–4096 的整数/)
-  page.selectMode({ currentTarget: { dataset: { mode: 'custom' } } })
-  page.onWidthInput({ detail: { value: '' } })
-  await page.resizeImage()
-  assert.equal(canvasCalls, 0)
-  assert.match(page.data.errorMessage, /宽高必须是 1–4096 的整数/)
+  assert.deepEqual(calls, [
+    ['prepare', 20, 10, 1],
+    ['draw', { id: 'png-image' }, 0, 0, 20, 10],
+    ['export', canvas, 20, 10, 'png', undefined],
+  ])
+  assert.equal(page.data.resultPath, 'output.png')
 })
 
 test('stale operations, result changes, and unloaded pages cannot update state', async () => {
@@ -187,14 +200,26 @@ test('stale operations, result changes, and unloaded pages cannot update state',
     math: { resizeByPercent: () => ({ width: 200, height: 150 }), resolveLockedSize: () => ({ width: 1, height: 1 }) },
   })
   const page = createInstance(definition)
+  let lateSetDataCount = 0
+  const setData = page.setData
+  page.setData = (patch) => {
+    if (page._unloaded) lateSetDataCount += 1
+    setData(patch)
+  }
+  const returnedCanvas = { width: 9, height: 9 }
   setSource(page)
   const pending = page.resizeImage()
   page.selectMode({ currentTarget: { dataset: { mode: 'half' } } })
   page.onUnload()
-  canvasReady.resolve({ width: 9, height: 9 })
+  canvasReady.resolve(returnedCanvas)
   await pending
   assert.equal(page.data.resultPath, '')
   assert.equal(page.data.processing, true)
+  assert.equal(page._canvas, null)
+  assert.equal(page._canvasOwnerId, null)
+  assert.equal(returnedCanvas.width, 1)
+  assert.equal(returnedCanvas.height, 1)
+  assert.equal(lateSetDataCount, 0)
 })
 
 test('saveResult uses exact result once, cancellation is silent, and invalid results are cleared by changes', async () => {
@@ -222,4 +247,5 @@ test('resize WXML exposes local controls and no unsupported modes', () => {
   assert.match(wxml, /disabled="\{\{processing\}\}"/)
   assert.match(wxml, /loading="\{\{saving\}\}" disabled="\{\{saving\}\}"/)
   assert.doesNotMatch(wxml, /passport|template|cover|contain|stretch|upload/i)
+  assert.ok(wxml.indexOf('wx:if="{{errorMessage}}"') < wxml.indexOf('class="primary-button process-button"'))
 })

@@ -43,10 +43,10 @@
     <text wx:if="{{targetSizeText}}" class="hint output-hint">预计输出：{{targetSizeText}} px</text>
   </view>
 
+  <view wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</view>
   <button class="primary-button process-button" bindtap="resizeImage" loading="{{processing}}" disabled="{{processing || !source}}">
     {{processing ? '处理中' : '开始调整'}}
   </button>
-  <view wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</view>
 
   <view wx:if="{{resultPath}}" class="card image-card result-card">
     <text class="section-title">调整结果</text>

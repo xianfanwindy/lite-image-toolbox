@@ -12,9 +12,15 @@ function isCancelled(error) {
   return /cancel|deny/i.test(String(error && error.errMsg ? error.errMsg : error))
 }
 
+function isPrivacyRefused(error) {
+  return /requirePrivacyAuthorize:fail.*(?:privacy permission is not authorized|disagree)/i.test(
+    String(error && error.errMsg ? error.errMsg : error),
+  )
+}
+
 function isInvalidTemporaryFile(error) {
   const message = String(error && error.errMsg ? error.errMsg : error)
-  return /(temp(?:orary)?\s*(?:file|path)|wxfile:).*?(missing|invalid|not\s*exist|not\s*found)|no\s+such\s+file/i.test(message)
+  return /(temp(?:orary)?\s*(?:file|path)|wxfile:).*?(missing|invalid|not\s*exist|not\s*found)|no\s+such\s+file|file\s+(?:not\s+found|missing|invalid)|(?:not\s+found|missing|invalid)\s+file/i.test(message)
 }
 
 async function requestAlbumPermission() {
@@ -58,7 +64,7 @@ async function saveImageToAlbum(filePath) {
     try {
       await callWx('requirePrivacyAuthorize', {})
     } catch (error) {
-      if (isCancelled(error)) return { saved: false, cancelled: true }
+      if (isCancelled(error) || isPrivacyRefused(error)) return { saved: false, cancelled: true }
       throw error
     }
   }

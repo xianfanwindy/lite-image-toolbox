@@ -1,5 +1,7 @@
 const { getCanvasExportOptions } = require('./image-format')
 
+const MAX_CANVAS_PIXELS = 16777216
+
 function validateDimensions(width, height) {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 4096 || height > 4096) {
     throw new RangeError('Canvas dimensions must be between 1 and 4096')
@@ -44,6 +46,9 @@ function loadCanvasImage(canvas, path) {
 function prepareCanvas(canvas, width, height, pixelRatio) {
   const logical = validateDimensions(width, height)
   const ratio = Number.isFinite(pixelRatio) && pixelRatio > 0 ? Math.min(pixelRatio, 2) : 1
+  if (logical.width * logical.height * ratio * ratio > MAX_CANVAS_PIXELS) {
+    throw new RangeError('Canvas backing store is too large')
+  }
   canvas.width = Math.round(logical.width * ratio)
   canvas.height = Math.round(logical.height * ratio)
   const context = canvas.getContext('2d')
@@ -54,14 +59,17 @@ function prepareCanvas(canvas, width, height, pixelRatio) {
 function exportCanvas(canvas, width, height, format, quality) {
   const logical = validateDimensions(width, height)
   if (!canvas) return Promise.reject(new Error('Canvas is required'))
+  if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
+    return Promise.reject(new Error('Canvas backing dimensions are invalid'))
+  }
 
   return new Promise((resolve, reject) => {
     wx.canvasToTempFilePath({
       canvas,
       x: 0,
       y: 0,
-      width: logical.width,
-      height: logical.height,
+      width: canvas.width,
+      height: canvas.height,
       destWidth: logical.width,
       destHeight: logical.height,
       ...getCanvasExportOptions(format, quality),

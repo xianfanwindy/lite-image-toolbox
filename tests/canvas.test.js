@@ -104,6 +104,15 @@ test('prepareCanvas caps ratio and scales the backing canvas context', () => {
   assert.deepEqual(calls, [[2, 2]])
 })
 
+test('prepareCanvas rejects a backing store that exceeds the Canvas pixel budget', () => {
+  const canvas = { getContext() { return { scale() {} } } }
+  const { prepareCanvas } = require('../utils/canvas')
+
+  assert.throws(() => prepareCanvas(canvas, 4096, 4096, 2), /Canvas.*too large|too large.*Canvas/i)
+  assert.doesNotThrow(() => prepareCanvas(canvas, 2048, 2048, 2))
+  assert.doesNotThrow(() => prepareCanvas(canvas, 4096, 1024, 2))
+})
+
 test('prepareCanvas and exportCanvas reject invalid or oversized dimensions', () => {
   const { prepareCanvas, exportCanvas } = require('../utils/canvas')
   assert.throws(() => prepareCanvas({}, 0, 10, 1), RangeError)
@@ -119,7 +128,7 @@ test('exportCanvas exports PNG without quality and resolves a nonempty temporary
       options.success({ tempFilePath: 'wxfile://tmp/output.png' })
     },
   }
-  const canvas = { id: 'canvas' }
+  const canvas = { id: 'canvas', width: 300, height: 200 }
 
   const { exportCanvas } = require('../utils/canvas')
   assert.equal(await exportCanvas(canvas, 300, 200, 'png', 0.2), 'wxfile://tmp/output.png')
@@ -138,6 +147,28 @@ test('exportCanvas exports PNG without quality and resolves a nonempty temporary
   })
 })
 
+test('exportCanvas crops the full DPR backing store while keeping logical output dimensions', async () => {
+  let exportOptions
+  global.wx = {
+    canvasToTempFilePath(options) {
+      exportOptions = options
+      options.success({ tempFilePath: 'wxfile://tmp/output.jpg' })
+    },
+  }
+  const canvas = { getContext() { return { scale() {} } } }
+  const { prepareCanvas, exportCanvas } = require('../utils/canvas')
+
+  prepareCanvas(canvas, 300, 200, 2)
+  await exportCanvas(canvas, 300, 200, 'jpg', 0.8)
+
+  assert.equal(canvas.width, 600)
+  assert.equal(canvas.height, 400)
+  assert.equal(exportOptions.width, 600)
+  assert.equal(exportOptions.height, 400)
+  assert.equal(exportOptions.destWidth, 300)
+  assert.equal(exportOptions.destHeight, 200)
+})
+
 test('exportCanvas rejects when WeChat reports an empty temporary path', async () => {
   global.wx = {
     canvasToTempFilePath(options) {
@@ -146,7 +177,7 @@ test('exportCanvas rejects when WeChat reports an empty temporary path', async (
   }
 
   const { exportCanvas } = require('../utils/canvas')
-  await assert.rejects(exportCanvas({}, 10, 10, 'jpg', 0.8), /Canvas/)
+  await assert.rejects(exportCanvas({ width: 10, height: 10 }, 10, 10, 'jpg', 0.8), /Canvas/)
 })
 
 test('formatBytes formats invalid, byte, KB, and MB values', () => {

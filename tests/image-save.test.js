@@ -154,6 +154,26 @@ test('saveImageToAlbum returns cancelled when privacy authorization is denied', 
   assert.equal(getSettingCalled, false)
 })
 
+test('saveImageToAlbum treats privacy-not-authorized and disagree responses as cancellation', async () => {
+  for (const errMsg of [
+    'requirePrivacyAuthorize:fail privacy permission is not authorized',
+    'requirePrivacyAuthorize:fail disagree',
+  ]) {
+    let getSettingCalled = false
+    let saveCalled = false
+    global.wx = {
+      requirePrivacyAuthorize(options) { options.fail({ errMsg }) },
+      getSetting() { getSettingCalled = true },
+      saveImageToPhotosAlbum() { saveCalled = true },
+    }
+
+    const { saveImageToAlbum } = require('../utils/image-save')
+    assert.deepEqual(await saveImageToAlbum('wxfile://tmp/processed.jpg'), { saved: false, cancelled: true })
+    assert.equal(getSettingCalled, false)
+    assert.equal(saveCalled, false)
+  }
+})
+
 test('saveImageToAlbum returns cancelled when album saving is cancelled', async () => {
   global.wx = {
     getSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': true } }) },
@@ -168,6 +188,16 @@ test('saveImageToAlbum converts an invalid temporary-file error into recovery gu
   global.wx = {
     getSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': true } }) },
     saveImageToPhotosAlbum(options) { options.fail({ errMsg: 'saveImageToPhotosAlbum:fail no such file' }) },
+  }
+
+  const { saveImageToAlbum } = require('../utils/image-save')
+  await assert.rejects(saveImageToAlbum('wxfile://tmp/processed.jpg'), /请重新处理图片/)
+})
+
+test('saveImageToAlbum converts a file-not-found save error into recovery guidance', async () => {
+  global.wx = {
+    getSetting(options) { options.success({ authSetting: { 'scope.writePhotosAlbum': true } }) },
+    saveImageToPhotosAlbum(options) { options.fail({ errMsg: 'saveImageToPhotosAlbum:fail file not found' }) },
   }
 
   const { saveImageToAlbum } = require('../utils/image-save')

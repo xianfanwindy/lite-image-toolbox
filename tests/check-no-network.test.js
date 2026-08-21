@@ -99,6 +99,24 @@ test('strips regex literals without hiding real runtime API calls or flagging re
   })
 })
 
+test('handles regex literals as control-statement bodies without opening call or division contexts', () => {
+  withTempRoot((root) => {
+    writeFile(root, 'utils/control-regex.js', [
+      "while (false) /[/*]/.test('/'); wx.request({})",
+      "if (true) /[//]/.test('/'); wx.downloadFile({})",
+      "for (; false;) /[\\/]/.test('/'); wx.cloud.callFunction({})",
+      'const quotient = getValue() / 2; wx.request({})',
+    ].join('\n'))
+
+    assert.deepEqual(scanFiles(root), [
+      { file: 'utils/control-regex.js', line: 1, pattern: 'wx.request' },
+      { file: 'utils/control-regex.js', line: 2, pattern: 'wx.downloadFile' },
+      { file: 'utils/control-regex.js', line: 3, pattern: 'wx.cloud' },
+      { file: 'utils/control-regex.js', line: 4, pattern: 'wx.request' },
+    ])
+  })
+})
+
 test('does not report prohibited text that occurs only in comments', () => {
   withTempRoot((root) => {
     writeFile(root, 'utils/comments.js', [

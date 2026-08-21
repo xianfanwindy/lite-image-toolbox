@@ -36,6 +36,8 @@ const REGEX_PREFIX_KEYWORDS = new Set([
   'yield',
 ])
 
+const CONTROL_PAREN_KEYWORDS = new Set(['catch', 'for', 'if', 'switch', 'while', 'with'])
+
 function relativeFile(root, file) {
   return path.relative(root, file).split(path.sep).join('/')
 }
@@ -64,6 +66,16 @@ function isProtocolSlash(source, index) {
       source.slice(Math.max(0, index - 5), index) === 'http:')
 }
 
+function hasStatementLineBreak(source, index) {
+  let cursor = index - 1
+  let foundLineBreak = false
+  while (cursor >= 0 && /\s/.test(source[cursor])) {
+    if (source[cursor] === '\r' || source[cursor] === '\n') foundLineBreak = true
+    cursor -= 1
+  }
+  return foundLineBreak && source[cursor] !== '.'
+}
+
 function stripComments(source) {
   const characters = source.split('')
   let state = 'code'
@@ -71,6 +83,8 @@ function stripComments(source) {
   let escaped = false
   let inCharacterClass = false
   let canStartRegex = true
+  let pendingControlParen = false
+  const parenKinds = []
 
   const blank = (index) => {
     if (characters[index] !== '\r' && characters[index] !== '\n') {
@@ -142,6 +156,7 @@ function stripComments(source) {
       state = 'string'
       quote = character
       escaped = false
+      pendingControlParen = false
       canStartRegex = false
     } else if (character === '/' && source[index + 1] === '/' && !isProtocolSlash(source, index)) {
       blank(index)
@@ -164,15 +179,29 @@ function stripComments(source) {
     } else {
       const word = source.slice(index).match(/^[A-Za-z_$][A-Za-z0-9_$]*/)
       if (word) {
+        pendingControlParen = CONTROL_PAREN_KEYWORDS.has(word[0]) &&
+          (canStartRegex || hasStatementLineBreak(source, index))
         canStartRegex = REGEX_PREFIX_KEYWORDS.has(word[0])
         index += word[0].length - 1
       } else if (/\d/.test(character)) {
+        pendingControlParen = false
         canStartRegex = false
+      } else if (character === '(') {
+        parenKinds.push(pendingControlParen)
+        pendingControlParen = false
+        canStartRegex = true
+      } else if (character === ')') {
+        const isControlParen = parenKinds.pop() === true
+        pendingControlParen = false
+        canStartRegex = isControlParen
       } else if ('([{,;:=!?&|+\-*%~^<>'.includes(character)) {
+        pendingControlParen = false
         canStartRegex = true
       } else if (')]}'.includes(character) || character === '.') {
+        pendingControlParen = false
         canStartRegex = false
       } else if (character === '/') {
+        pendingControlParen = false
         canStartRegex = true
       }
     }

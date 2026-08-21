@@ -215,11 +215,52 @@ test('stale operations, result changes, and unloaded pages cannot update state',
   await pending
   assert.equal(page.data.resultPath, '')
   assert.equal(page.data.processing, true)
-  assert.equal(page._canvas, null)
-  assert.equal(page._canvasOwnerId, null)
+  assert.equal(page._canvas || null, null)
+  assert.equal(page._canvasOwnerId || null, null)
   assert.equal(returnedCanvas.width, 1)
   assert.equal(returnedCanvas.height, 1)
   assert.equal(lateSetDataCount, 0)
+})
+
+test('a successful replacement releases an ownerless stale returned canvas', async () => {
+  const canvasReady = createDeferred()
+  const replacement = { path: 'new.png', width: 30, height: 20, size: 12, type: 'png' }
+  const { definition } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: { getCanvas: () => canvasReady.promise, formatBytes: (size) => `${size} B` },
+    format: { normalizeImageFormat: () => 'png', shouldFillWhite: () => false },
+  })
+  const page = createInstance(definition)
+  setSource(page, { path: 'old.jpg', width: 40, height: 30, size: 1, format: 'jpg' })
+  const resizing = page.resizeImage()
+  await page.chooseImage()
+  const oldCanvas = { width: 9, height: 9 }
+  canvasReady.resolve(oldCanvas)
+  await resizing
+  assert.deepEqual(page.data.source, { ...replacement, format: 'png' })
+  assert.equal(page.data.resultPath, '')
+  assert.equal(page._canvas || null, null)
+  assert.equal(page._canvasOwnerId || null, null)
+  assert.equal(oldCanvas.width, 1)
+  assert.equal(oldCanvas.height, 1)
+})
+
+test('a stale returned canvas does not release a newer owner of the same canvas', async () => {
+  const canvasReady = createDeferred()
+  const sharedCanvas = { width: 9, height: 9 }
+  const { definition } = loadPage({ canvas: { getCanvas: () => canvasReady.promise } })
+  const page = createInstance(definition)
+  setSource(page)
+  const oldResize = page.resizeImage()
+  const newerOwnerId = page.nextOperation()
+  page._canvas = sharedCanvas
+  page._canvasOwnerId = newerOwnerId
+  canvasReady.resolve(sharedCanvas)
+  await oldResize
+  assert.equal(sharedCanvas.width, 9)
+  assert.equal(sharedCanvas.height, 9)
+  assert.equal(page._canvas, sharedCanvas)
+  assert.equal(page._canvasOwnerId, newerOwnerId)
 })
 
 test('saveResult uses exact result once, cancellation is silent, and invalid results are cleared by changes', async () => {

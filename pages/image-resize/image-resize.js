@@ -225,7 +225,10 @@ Page({
     try {
       canvas = await getCanvas(this, '#processor-canvas')
       if (!this.isCurrent(token)) {
-        if (this._unloaded && canvas) {
+        const ownedByAnotherOperation = this._canvas === canvas
+          && this._canvasOwnerId
+          && this._canvasOwnerId !== token
+        if (!ownedByAnotherOperation && canvas) {
           canvas.width = 1
           canvas.height = 1
         }

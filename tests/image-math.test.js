@@ -22,6 +22,12 @@ test('resizeByPercent rounds dimensions and never returns zero', () => {
   assert.deepEqual(resizeByPercent(3, 1, 50), { width: 2, height: 1 })
 })
 
+test('invalid resize values fail explicitly', () => {
+  assert.throws(() => resizeByPercent(100, 100, 0), RangeError)
+  assert.throws(() => resolveLockedSize(100, 100, 'width', ''), RangeError)
+  assert.throws(() => fitWithinSide(0, 100, 4096), RangeError)
+})
+
 test('resolveLockedSize updates height from width', () => {
   assert.deepEqual(resolveLockedSize(4000, 3000, 'width', 1000), { width: 1000, height: 750 })
 })

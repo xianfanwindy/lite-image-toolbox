@@ -3,6 +3,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const indexModulePath = path.resolve(__dirname, '../pages/index/index.js')
+const indexTemplatePath = path.resolve(__dirname, '../pages/index/index.wxml')
 const expectedTools = [
   { title: '图片压缩', description: '减小图片体积', icon: '压', path: '/pages/image-compress/image-compress' },
   { title: '尺寸调整', description: '按比例修改宽高', icon: '尺', path: '/pages/image-resize/image-resize' },
@@ -68,4 +69,15 @@ test('首页忽略缺失或空工具路径', () => {
   page.openTool({ currentTarget: { dataset: { path: '' } } })
 
   assert.deepEqual(navigateCalls, [])
+})
+
+test('首页工具卡片具备导航数据与按压反馈', () => {
+  const template = require('node:fs').readFileSync(indexTemplatePath, 'utf8')
+  const toolCard = template.match(/<button[\s\S]*?<\/button>/)
+
+  assert.ok(toolCard)
+  assert.match(toolCard[0], /class="tool-card"/)
+  assert.match(toolCard[0], /data-path="{{item\.path}}"/)
+  assert.match(toolCard[0], /bindtap="openTool"/)
+  assert.match(toolCard[0], /hover-class="tool-card-hover"/)
 })

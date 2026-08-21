@@ -12,6 +12,7 @@
       class="tool-card"
       data-path="{{item.path}}"
       bindtap="openTool"
+      hover-class="tool-card-hover"
     >
       <text class="tool-icon">{{item.icon}}</text>
       <text class="tool-title">{{item.title}}</text>

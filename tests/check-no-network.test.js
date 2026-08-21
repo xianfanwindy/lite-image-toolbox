@@ -62,6 +62,8 @@ test('detects split, computed, optional-chain, and comment-separated API members
       'wx /* comment */ . uploadFile({})',
       'wx [ "downloadFile" ]({})',
       'wx ? . cloud . callFunction({})',
+      "wx?.['request']({})",
+      'wx?.["request"]({})',
     ].join('\n'))
 
     assert.deepEqual(scanFiles(root), [
@@ -73,6 +75,26 @@ test('detects split, computed, optional-chain, and comment-separated API members
       { file: 'pages/variants.js', line: 7, pattern: 'wx.uploadFile' },
       { file: 'pages/variants.js', line: 8, pattern: 'wx.downloadFile' },
       { file: 'pages/variants.js', line: 9, pattern: 'wx.cloud' },
+      { file: 'pages/variants.js', line: 10, pattern: 'wx.request' },
+      { file: 'pages/variants.js', line: 11, pattern: 'wx.request' },
+    ])
+  })
+})
+
+test('strips regex literals without hiding real runtime API calls or flagging regex text', () => {
+  withTempRoot((root) => {
+    writeFile(root, 'utils/regex.js', [
+      'const re = /https?:\\/\\//; wx.request({})',
+      'const slash = /[/]/; wx.cloud.callFunction({})',
+      'const name = /wx\\.request/',
+      '// wx.uploadFile is still a comment',
+      'wx.downloadFile({})',
+    ].join('\n'))
+
+    assert.deepEqual(scanFiles(root), [
+      { file: 'utils/regex.js', line: 1, pattern: 'wx.request' },
+      { file: 'utils/regex.js', line: 2, pattern: 'wx.cloud' },
+      { file: 'utils/regex.js', line: 5, pattern: 'wx.downloadFile' },
     ])
   })
 })

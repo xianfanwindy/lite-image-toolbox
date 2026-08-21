@@ -10,13 +10,31 @@ const IGNORED_DIRECTORIES = new Set([
 ])
 
 const PATTERNS = [
-  { label: 'wx.uploadFile', expression: /\bwx\s*(?:\?\s*)?\.\s*uploadFile\b|\bwx\s*(?:\?\s*)?\[\s*(['"])uploadFile\1\s*\]/g },
-  { label: 'wx.downloadFile', expression: /\bwx\s*(?:\?\s*)?\.\s*downloadFile\b|\bwx\s*(?:\?\s*)?\[\s*(['"])downloadFile\1\s*\]/g },
-  { label: 'wx.request', expression: /\bwx\s*(?:\?\s*)?\.\s*request\b|\bwx\s*(?:\?\s*)?\[\s*(['"])request\1\s*\]/g },
-  { label: 'wx.cloud', expression: /\bwx\s*(?:\?\s*)?\.\s*cloud\b|\bwx\s*(?:\?\s*)?\[\s*(['"])cloud\1\s*\]/g },
+  { label: 'wx.uploadFile', expression: /\bwx\s*(?:\?\s*)?\.\s*uploadFile\b|\bwx\s*(?:\?\s*\.\s*)?\[\s*(['"])uploadFile\1\s*\]/g },
+  { label: 'wx.downloadFile', expression: /\bwx\s*(?:\?\s*)?\.\s*downloadFile\b|\bwx\s*(?:\?\s*\.\s*)?\[\s*(['"])downloadFile\1\s*\]/g },
+  { label: 'wx.request', expression: /\bwx\s*(?:\?\s*)?\.\s*request\b|\bwx\s*(?:\?\s*\.\s*)?\[\s*(['"])request\1\s*\]/g },
+  { label: 'wx.cloud', expression: /\bwx\s*(?:\?\s*)?\.\s*cloud\b|\bwx\s*(?:\?\s*\.\s*)?\[\s*(['"])cloud\1\s*\]/g },
   { label: 'http://', expression: /http:\/\//g },
   { label: 'https://', expression: /https:\/\//g },
 ]
+
+const REGEX_PREFIX_KEYWORDS = new Set([
+  'await',
+  'case',
+  'delete',
+  'do',
+  'else',
+  'extends',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+])
 
 function relativeFile(root, file) {
   return path.relative(root, file).split(path.sep).join('/')
@@ -40,11 +58,19 @@ function assertSafePath(root, file, label) {
   return stats
 }
 
+function isProtocolSlash(source, index) {
+  return source[index] === '/' && source[index + 1] === '/' &&
+    (source.slice(Math.max(0, index - 6), index) === 'https:' ||
+      source.slice(Math.max(0, index - 5), index) === 'http:')
+}
+
 function stripComments(source) {
   const characters = source.split('')
   let state = 'code'
   let quote = ''
   let escaped = false
+  let inCharacterClass = false
+  let canStartRegex = true
 
   const blank = (index) => {
     if (characters[index] !== '\r' && characters[index] !== '\n') {
@@ -88,13 +114,36 @@ function stripComments(source) {
       continue
     }
 
+    if (state === 'regex') {
+      if (character === '\r' || character === '\n') {
+        continue
+      }
+      blank(index)
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (inCharacterClass) {
+        if (character === ']') inCharacterClass = false
+      } else if (character === '[') {
+        inCharacterClass = true
+      } else if (character === '/') {
+        state = 'code'
+        canStartRegex = false
+        while (/[A-Za-z]/.test(source[index + 1] || '')) {
+          index += 1
+          blank(index)
+        }
+      }
+      continue
+    }
+
     if (character === "'" || character === '"' || character === '`') {
       state = 'string'
       quote = character
       escaped = false
-    } else if (character === '/' && source[index + 1] === '/' &&
-      source.slice(Math.max(0, index - 6), index) !== 'https:' &&
-      source.slice(Math.max(0, index - 5), index) !== 'http:') {
+      canStartRegex = false
+    } else if (character === '/' && source[index + 1] === '/' && !isProtocolSlash(source, index)) {
       blank(index)
       blank(index + 1)
       index += 1
@@ -104,6 +153,28 @@ function stripComments(source) {
       blank(index + 1)
       index += 1
       state = 'block-comment'
+    } else if (isProtocolSlash(source, index)) {
+      canStartRegex = false
+    } else if (character === '/' && source[index + 1] !== '=' && canStartRegex) {
+      blank(index)
+      state = 'regex'
+      escaped = false
+      inCharacterClass = false
+      canStartRegex = false
+    } else {
+      const word = source.slice(index).match(/^[A-Za-z_$][A-Za-z0-9_$]*/)
+      if (word) {
+        canStartRegex = REGEX_PREFIX_KEYWORDS.has(word[0])
+        index += word[0].length - 1
+      } else if (/\d/.test(character)) {
+        canStartRegex = false
+      } else if ('([{,;:=!?&|+\-*%~^<>'.includes(character)) {
+        canStartRegex = true
+      } else if (')]}'.includes(character) || character === '.') {
+        canStartRegex = false
+      } else if (character === '/') {
+        canStartRegex = true
+      }
     }
   }
 

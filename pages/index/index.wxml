@@ -1,0 +1,24 @@
+<view class="page home-page">
+  <view class="hero">
+    <text class="hero-title">轻图工具箱</text>
+    <text class="hero-slogan">安全、快速、无需上传</text>
+    <text class="hero-description">图片只在您的设备本地处理</text>
+  </view>
+
+  <view class="tool-list">
+    <button
+      wx:for="{{tools}}"
+      wx:key="path"
+      class="tool-card"
+      data-path="{{item.path}}"
+      bindtap="openTool"
+    >
+      <text class="tool-icon">{{item.icon}}</text>
+      <text class="tool-title">{{item.title}}</text>
+      <text class="tool-description">{{item.description}}</text>
+    </button>
+  </view>
+
+  <text class="privacy-note">无需登录，不保存处理记录</text>
+  <ad-slot unit-id="{{homeBannerUnitId}}" />
+</view>

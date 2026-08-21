@@ -1,0 +1,6 @@
+<view class="page tool-shell">
+  <view class="card">
+    <text class="tool-shell-title">图片压缩</text>
+    <text class="hint">功能将在后续任务接入</text>
+  </view>
+</view>

@@ -1,0 +1,6 @@
+.tool-shell-title {
+  display: block;
+  margin-bottom: 16rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+}

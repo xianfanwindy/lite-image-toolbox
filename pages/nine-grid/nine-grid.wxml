@@ -1,6 +1,33 @@
-<view class="page tool-shell">
-  <view class="card">
-    <text class="tool-shell-title">九宫格切图</text>
-    <text class="hint">功能将在后续任务接入</text>
+<view class="page nine-grid-page">
+  <view class="card intro-card">
+    <text class="page-title">九宫格切图</text>
+    <text class="hint">图片仅在本机处理，不会上传</text>
   </view>
+
+  <button class="secondary-button choose-button" bindtap="chooseImage" disabled="{{processing || saving}}">
+    {{source ? '更换图片' : '选择图片'}}
+  </button>
+
+  <view wx:if="{{source}}" class="card image-card">
+    <image class="source-preview" src="{{source.path}}" mode="aspectFit" />
+    <view class="meta-row"><text>{{source.width}} × {{source.height}}</text><text>{{sourceSizeText}}</text></view>
+    <text class="hint crop-hint">将居中裁剪为正方形</text>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</view>
+  <button class="primary-button generate-button" bindtap="generateGrid" loading="{{processing}}" disabled="{{processing || saving || !source}}">
+    {{processing ? '正在切图' : '生成九宫格'}}
+  </button>
+
+  <view wx:if="{{results.length}}" class="card result-card">
+    <text class="section-title">切图结果</text>
+    <view class="grid-preview">
+      <view class="grid-cell" wx:for="{{results}}" wx:key="index"><image src="{{item.path}}" mode="aspectFill" /></view>
+    </view>
+    <text wx:if="{{saveProgressText}}" class="hint save-progress">{{saveProgressText}}</text>
+    <button class="primary-button save-button" bindtap="saveAll" loading="{{saving}}" disabled="{{saving || processing || results.length !== 9}}">按顺序保存到相册</button>
+    <ad-slot unit-id="{{resultBannerUnitId}}" />
+  </view>
+
+  <canvas id="processor-canvas" type="2d" class="canvas-host"></canvas>
 </view>

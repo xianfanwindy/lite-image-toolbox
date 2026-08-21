@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "九宫格切图"
+  "navigationBarTitleText": "九宫格切图",
+  "usingComponents": {
+    "ad-slot": "/components/ad-slot/ad-slot"
+  }
 }

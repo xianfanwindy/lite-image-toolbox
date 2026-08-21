@@ -55,6 +55,18 @@ test('getNineGridTile returns row-major source rectangles', () => {
   assert.deepEqual(getNineGridTile({ x: 90, y: 30, size: 900 }, 8), { x: 690, y: 630, size: 300 })
 })
 
+test('getNineGridTile covers every row-major position exactly once', () => {
+  const crop = { x: 90, y: 30, size: 900 }
+  const tiles = Array.from({ length: 9 }, (_, index) => getNineGridTile(crop, index))
+  assert.deepEqual(tiles, [
+    { x: 90, y: 30, size: 300 }, { x: 390, y: 30, size: 300 }, { x: 690, y: 30, size: 300 },
+    { x: 90, y: 330, size: 300 }, { x: 390, y: 330, size: 300 }, { x: 690, y: 330, size: 300 },
+    { x: 90, y: 630, size: 300 }, { x: 390, y: 630, size: 300 }, { x: 690, y: 630, size: 300 },
+  ])
+  assert.equal(new Set(tiles.map((tile) => `${tile.x},${tile.y}`)).size, 9)
+  ;[-1, 9, 1.5].forEach((index) => assert.throws(() => getNineGridTile(crop, index), RangeError))
+})
+
 test('watermark positions use the requested padding', () => {
   const input = { width: 1000, height: 800, textWidth: 200, lineHeight: 40, padding: 32 }
   assert.deepEqual(getWatermarkPoint({ ...input, position: 'top-left' }), { x: 32, y: 32, textAlign: 'left', textBaseline: 'top' })

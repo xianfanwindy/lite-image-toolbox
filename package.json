@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local-only image tools for WeChat Mini Program",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test && node scripts/check-no-network.js",
     "check:network": "node scripts/check-no-network.js"
   }
 }

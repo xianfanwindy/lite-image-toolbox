@@ -72,6 +72,9 @@ test('watermark positions use the requested padding', () => {
   assert.deepEqual(getWatermarkPoint({ ...input, position: 'top-left' }), { x: 32, y: 32, textAlign: 'left', textBaseline: 'top' })
   assert.deepEqual(getWatermarkPoint({ ...input, position: 'center' }), { x: 500, y: 400, textAlign: 'center', textBaseline: 'middle' })
   assert.deepEqual(getWatermarkPoint({ ...input, position: 'bottom-right' }), { x: 968, y: 768, textAlign: 'right', textBaseline: 'bottom' })
+  assert.deepEqual(getWatermarkPoint({ ...input, position: 'top-right' }), { x: 968, y: 32, textAlign: 'right', textBaseline: 'top' })
+  assert.deepEqual(getWatermarkPoint({ ...input, position: 'bottom-left' }), { x: 32, y: 768, textAlign: 'left', textBaseline: 'bottom' })
+  assert.throws(() => getWatermarkPoint({ ...input, position: 'diagonal' }), RangeError)
 })
 
 test('opacity percent is clamped to canvas alpha', () => {

@@ -1,6 +1,48 @@
 <view class="page tool-shell">
   <view class="card">
     <text class="tool-shell-title">文字水印</text>
-    <text class="hint">功能将在后续任务接入</text>
+    <text class="hint">图片仅在本地处理，不会上传。</text>
+    <button class="secondary-button" bindtap="chooseImage" disabled="{{processing || saving}}">选择图片</button>
+    <image wx:if="{{source}}" class="source-preview" src="{{source.path}}" mode="widthFix" />
+    <text wx:if="{{source}}" class="meta">原图大小：{{sourceSizeText}}</text>
   </view>
+  <text wx:if="{{errorMessage}}" class="error">{{errorMessage}}</text>
+
+  <view class="card" wx:if="{{source}}">
+    <view class="field">
+      <text class="field-label">水印文字</text>
+      <input value="{{watermarkText}}" maxlength="30" placeholder="最多 30 个字符" aria-label="水印文字" bindinput="onTextInput" disabled="{{processing}}" />
+    </view>
+    <view class="field">
+      <text class="field-label">颜色</text>
+      <view class="color-grid">
+        <button class="color-button {{color === '#ffffff' ? 'selected' : ''}}" data-color="#ffffff" bindtap="selectColor" disabled="{{processing}}"><view class="swatch white"></view><text>白色</text></button>
+        <button class="color-button {{color === '#000000' ? 'selected' : ''}}" data-color="#000000" bindtap="selectColor" disabled="{{processing}}"><view class="swatch black"></view><text>黑色</text></button>
+      </view>
+    </view>
+    <view class="field">
+      <text class="field-label">位置</text>
+      <view class="position-grid">
+        <button class="position-button {{position === 'top-left' ? 'selected' : ''}}" data-position="top-left" bindtap="selectPosition" disabled="{{processing}}">左上</button>
+        <button class="position-button {{position === 'top-right' ? 'selected' : ''}}" data-position="top-right" bindtap="selectPosition" disabled="{{processing}}">右上</button>
+        <button class="position-button {{position === 'center' ? 'selected' : ''}}" data-position="center" bindtap="selectPosition" disabled="{{processing}}">居中</button>
+        <button class="position-button {{position === 'bottom-left' ? 'selected' : ''}}" data-position="bottom-left" bindtap="selectPosition" disabled="{{processing}}">左下</button>
+        <button class="position-button {{position === 'bottom-right' ? 'selected' : ''}}" data-position="bottom-right" bindtap="selectPosition" disabled="{{processing}}">右下</button>
+      </view>
+    </view>
+    <view class="field">
+      <text class="field-label">透明度 {{opacity}}%</text>
+      <slider min="20" max="100" step="5" value="{{opacity}}" aria-label="水印透明度" bindchange="onOpacityChange" disabled="{{processing}}" />
+    </view>
+    <text wx:if="{{warningMessage}}" class="warning">{{warningMessage}}</text>
+    <button class="primary-button process-button" bindtap="applyWatermark" loading="{{processing}}" disabled="{{processing || saving}}">添加水印</button>
+  </view>
+
+  <view class="card" wx:if="{{resultPath}}">
+    <image class="result-preview" src="{{resultPath}}" mode="widthFix" />
+    <text class="meta">处理后大小：{{resultSizeText}}</text>
+    <button class="primary-button save-button" bindtap="saveResult" loading="{{saving}}" disabled="{{saving}}">保存到相册</button>
+    <ad-slot wx:if="{{resultBannerUnitId}}" ad-unit-id="{{resultBannerUnitId}}"></ad-slot>
+  </view>
+  <canvas id="processor-canvas" type="2d" class="processor-canvas"></canvas>
 </view>

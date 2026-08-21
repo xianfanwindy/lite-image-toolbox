@@ -42,7 +42,7 @@
     <image class="result-preview" src="{{resultPath}}" mode="widthFix" />
     <text class="meta">处理后大小：{{resultSizeText}}</text>
     <button class="primary-button save-button" bindtap="saveResult" loading="{{saving}}" disabled="{{saving}}">保存到相册</button>
-    <ad-slot wx:if="{{resultBannerUnitId}}" ad-unit-id="{{resultBannerUnitId}}"></ad-slot>
+    <ad-slot wx:if="{{resultBannerUnitId}}" unit-id="{{resultBannerUnitId}}"></ad-slot>
   </view>
   <canvas id="processor-canvas" type="2d" class="processor-canvas"></canvas>
 </view>

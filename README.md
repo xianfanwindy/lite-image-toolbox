@@ -18,7 +18,7 @@
 - 用户通过微信的选图能力选择相册图片或拍照，源码只接收微信临时文件路径。
 - 压缩、尺寸调整、切图和水印都通过小程序 Canvas 在本地完成，结果仍是微信临时文件；只有用户主动点击保存后，结果才写入系统相册。
 - 项目没有服务器地址、账号体系、图片数据库或登录流程。运行时 JavaScript 位于 `app.js`、`pages/`、`utils/`、`components/` 和 `config/`，`npm test` 会执行 `scripts/check-no-network.js`，阻止 `wx.request`、`wx.uploadFile`、`wx.downloadFile`、`wx.cloud` 和 HTTP(S) 地址进入这些运行时代码。
-- Banner 广告是与图片处理分离的微信原生组件；默认不渲染，且项目代码不会向广告组件传递或开放用户图片。
+- Banner 广告是与图片处理分离的微信原生组件；默认不渲染，且项目业务代码不会向广告组件传递或开放用户图片。微信广告平台侧的数据处理需按后台当期隐私提示和广告规则另行核对、披露。
 
 更完整的数据路径和微信后台填写参考见 [隐私保护指引](docs/privacy-guide.md)。
 
@@ -31,10 +31,12 @@
 ## 本地测试与导入
 
 ```powershell
-git clone https://github.com/xianfanwindy/lite-image-toolbox.git
+git clone --branch feat/lite-image-toolbox-v1 --single-branch https://github.com/xianfanwindy/lite-image-toolbox.git
 cd lite-image-toolbox
 npm test
 ```
+
+当前可执行版本尚未合并到 GitHub 默认分支，因此以上命令明确检出 `feat/lite-image-toolbox-v1`。待该功能分支完成验收、合并并切换为默认分支后，才可改用普通 `git clone`。
 
 随后在 WeChat DevTools 中导入克隆后的项目根目录。导入前，仅在自己的本地工作区把 `project.config.json` 中的：
 

@@ -450,6 +450,7 @@ test('watermark WXML is local fixed-position UI with one ad slot and accessible 
   ;['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'].forEach((position) => {
     assert.match(wxml, new RegExp(`data-position="${position}"[^>]*aria-role="radio"[^>]*aria-checked="\\{\\{position === '${position}'\\}\\}"[^>]*aria-label="`))
   })
-  assert.match(wxml, /<ad-slot[^>]*ad-unit-id="\{\{resultBannerUnitId\}\}"/)
+  assert.match(wxml, /<ad-slot[^>]*\sunit-id="\{\{resultBannerUnitId\}\}"/)
+  assert.doesNotMatch(wxml, /\sad-unit-id=/)
   assert.doesNotMatch(wxml, /logo|在线|素材|repeat|tile|rotate|font|https?:/i)
 })

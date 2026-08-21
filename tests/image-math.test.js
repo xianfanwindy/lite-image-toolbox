@@ -30,6 +30,14 @@ test('resolveLockedSize updates width from height', () => {
   assert.deepEqual(resolveLockedSize(4000, 3000, 'height', 600), { width: 800, height: 600 })
 })
 
+test('resolveLockedSize rounds a fractional width before locking height', () => {
+  assert.deepEqual(resolveLockedSize(4, 3, 'width', 1.5), { width: 2, height: 2 })
+})
+
+test('resolveLockedSize rounds a fractional height before locking width', () => {
+  assert.deepEqual(resolveLockedSize(4, 3, 'height', 1.5), { width: 3, height: 2 })
+})
+
 test('getSquareCrop centers landscape and portrait sources', () => {
   assert.deepEqual(getSquareCrop(1200, 800), { x: 200, y: 0, size: 800 })
   assert.deepEqual(getSquareCrop(800, 1200), { x: 0, y: 200, size: 800 })

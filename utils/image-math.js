@@ -35,11 +35,12 @@ function resolveLockedSize(sourceWidth, sourceHeight, changed, value) {
   assertPositive(sourceWidth, 'sourceWidth')
   assertPositive(sourceHeight, 'sourceHeight')
   assertPositive(value, 'value')
+  const next = roundDimension(value)
   if (changed === 'width') {
-    return { width: value, height: roundDimension(value * sourceHeight / sourceWidth) }
+    return { width: next, height: roundDimension(next * sourceHeight / sourceWidth) }
   }
   if (changed === 'height') {
-    return { width: roundDimension(value * sourceWidth / sourceHeight), height: value }
+    return { width: roundDimension(next * sourceWidth / sourceHeight), height: next }
   }
   throw new RangeError('changed must be width or height')
 }

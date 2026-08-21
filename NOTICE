@@ -1,0 +1,12 @@
+轻图工具箱
+
+This project contains adapted code and implementation ideas from:
+LittleWhite1995/tools-applet
+https://github.com/LittleWhite1995/tools-applet
+Pinned revision: fce4004c35c73b7ed82ac5191d7ac5e7b23b34b0
+License: MIT
+
+Modifications include reducing the project to four local image tools,
+removing remote image moderation and all external API calls, replacing
+third-party UI components with native mini-program components, and adding
+local-only privacy and advertisement configuration controls.

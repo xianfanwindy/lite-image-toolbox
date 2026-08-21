@@ -1,0 +1,10 @@
+{
+  "name": "lite-image-toolbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-only image tools for WeChat Mini Program",
+  "scripts": {
+    "test": "node --test",
+    "check:network": "node scripts/check-no-network.js"
+  }
+}

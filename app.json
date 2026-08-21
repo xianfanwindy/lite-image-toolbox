@@ -1,0 +1,24 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/image-compress/image-compress",
+    "pages/image-resize/image-resize",
+    "pages/nine-grid/nine-grid",
+    "pages/image-watermark/image-watermark"
+  ],
+  "window": {
+    "navigationBarTitleText": "轻图工具箱",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7f6",
+    "backgroundTextStyle": "light"
+  },
+  "permission": {
+    "scope.writePhotosAlbum": {
+      "desc": "用于将您处理后的图片保存到系统相册"
+    }
+  },
+  "__usePrivacyCheck__": true,
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

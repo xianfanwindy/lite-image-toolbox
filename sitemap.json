@@ -1,0 +1,4 @@
+{
+  "desc": "轻图工具箱页面索引规则",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

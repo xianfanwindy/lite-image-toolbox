@@ -1,2 +1,7 @@
 .superpowers/
 .worktrees/
+node_modules/
+miniprogram_npm/
+project.private.config.json
+.upstream-tools-applet/
+coverage/

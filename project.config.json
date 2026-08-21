@@ -1,0 +1,16 @@
+{
+  "setting": {
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "uglifyFileName": false,
+    "enhance": true,
+    "useCompilerPlugins": false,
+    "minifyWXML": true
+  },
+  "compileType": "miniprogram",
+  "packOptions": { "ignore": [], "include": [] },
+  "appid": "touristappid",
+  "projectname": "lite-image-toolbox",
+  "editorSetting": {}
+}

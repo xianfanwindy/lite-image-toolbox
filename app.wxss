@@ -1,0 +1,63 @@
+page {
+  --color-primary: #07c160;
+  --color-primary-active: #059b4d;
+  --color-text: #18211d;
+  --color-muted: #66736d;
+  --color-border: #e5ebe8;
+  --color-surface: #ffffff;
+  --color-background: #f5f7f6;
+  --color-primary-soft: #eaf8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+.page {
+  min-height: 100vh;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.card {
+  padding: 32rpx;
+  border: 1px solid var(--color-border);
+  border-radius: 20rpx;
+  background: var(--color-surface);
+}
+
+.primary-button,
+.secondary-button {
+  border: 0;
+  border-radius: 12rpx;
+}
+
+.primary-button {
+  color: #ffffff;
+  background: #07c160;
+}
+
+.secondary-button {
+  color: #18211d;
+  background: #eaf8f0;
+}
+
+.primary-button::after,
+.secondary-button::after {
+  border: 0;
+}
+
+.hint {
+  color: #66736d;
+  font-size: 26rpx;
+}
+
+.result-image {
+  width: 100%;
+  border-radius: 12rpx;
+}
+
+.canvas-host {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+}

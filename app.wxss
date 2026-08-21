@@ -1,6 +1,6 @@
 page {
   --color-primary: #07c160;
-  --color-primary-active: #059b4d;
+  --color-primary-dark: #059b4d;
   --color-text: #18211d;
   --color-muted: #66736d;
   --color-border: #e5ebe8;
@@ -37,7 +37,7 @@ page {
 }
 
 .secondary-button {
-  color: #18211d;
+  color: var(--color-primary-dark);
   background: #eaf8f0;
 }
 

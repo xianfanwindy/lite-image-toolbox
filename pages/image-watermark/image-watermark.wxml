@@ -3,7 +3,7 @@
     <text class="tool-shell-title">文字水印</text>
     <text class="hint">图片仅在本地处理，不会上传。</text>
     <button class="secondary-button" bindtap="chooseImage" disabled="{{processing || saving}}">选择图片</button>
-    <image wx:if="{{source}}" class="source-preview" src="{{source.path}}" mode="widthFix" />
+    <image wx:if="{{source}}" class="source-preview" src="{{source.path}}" mode="aspectFit" />
     <text wx:if="{{source}}" class="meta">原图大小：{{sourceSizeText}}</text>
   </view>
   <text wx:if="{{errorMessage}}" class="error">{{errorMessage}}</text>
@@ -39,7 +39,7 @@
   </view>
 
   <view class="card" wx:if="{{resultPath}}">
-    <image class="result-preview" src="{{resultPath}}" mode="widthFix" />
+    <image class="result-preview" src="{{resultPath}}" mode="aspectFit" />
     <text class="meta">处理后大小：{{resultSizeText}}</text>
     <button class="primary-button save-button" bindtap="saveResult" loading="{{saving}}" disabled="{{saving}}">保存到相册</button>
     <ad-slot wx:if="{{resultBannerUnitId}}" unit-id="{{resultBannerUnitId}}"></ad-slot>

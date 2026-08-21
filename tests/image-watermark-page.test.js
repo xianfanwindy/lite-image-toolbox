@@ -441,7 +441,11 @@ test('save uses exact output, preserves physical mutex across invalidation, and 
 
 test('watermark WXML is local fixed-position UI with one ad slot and accessible controls', () => {
   const wxml = fs.readFileSync(path.join(__dirname, '../pages/image-watermark/image-watermark.wxml'), 'utf8')
+  const wxss = fs.readFileSync(path.join(__dirname, '../pages/image-watermark/image-watermark.wxss'), 'utf8')
   assert.match(wxml, /id="processor-canvas" type="2d"/)
+  assert.equal((wxml.match(/class="(?:source|result)-preview"[^>]*mode="aspectFit"/g) || []).length, 2)
+  assert.doesNotMatch(wxml, /class="(?:source|result)-preview"[^>]*mode="widthFix"/)
+  assert.match(wxss, /\.source-preview, \.result-preview\s*\{[^}]*height:\s*\d+rpx;[^}]*max-height:/s)
   assert.match(wxml, /maxlength="-1"/)
   assert.match(wxml, /aria-label="水印文字"/)
   assert.match(wxml, /aria-label="水印透明度"/)

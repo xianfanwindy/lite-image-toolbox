@@ -109,6 +109,32 @@ test('saveAll saves in order, resumes after cancellation, and has a physical mut
   assert.deepEqual(wx.toasts, [{ title: '9 张图片已按顺序保存', icon: 'success' }])
 })
 
+test('saveAll discards expired temporary results and asks for regeneration', async () => {
+  const { definition } = loadPage({ save: { saveImageToAlbum: async () => { throw new Error('图片文件无效，请重新处理图片') } } })
+  const page = instance(definition)
+  page.data.results = Array.from({ length: 9 }, (_, index) => ({ index, path: `tile-${index}.jpg` }))
+  page.data.savedCount = 2
+  page.data.saveProgressText = '已保存 2/9 张'
+  await page.saveAll()
+  assert.deepEqual(page.data.results, [])
+  assert.equal(page.data.savedCount, 0)
+  assert.equal(page.data.saveProgressText, '')
+  assert.equal(page.data.errorMessage, '图片已失效，请重新生成九宫格')
+})
+
+test('saveAll keeps valid results and resume progress after an ordinary failure', async () => {
+  const { definition } = loadPage({ save: { saveImageToAlbum: async () => { throw new Error('album busy') } } })
+  const page = instance(definition)
+  const results = Array.from({ length: 9 }, (_, index) => ({ index, path: `tile-${index}.jpg` }))
+  page.data.results = results
+  page.data.savedCount = 2
+  await page.saveAll()
+  assert.deepEqual(page.data.results, results)
+  assert.equal(page.data.savedCount, 2)
+  assert.equal(page.data.saveProgressText, '已保存 2/9 张，可重新点击继续')
+  assert.equal(page.data.errorMessage, '保存失败，请重试')
+})
+
 test('nine-grid WXML keeps controls disabled while busy and uses a local 3 by 3 preview', () => {
   const wxml = fs.readFileSync(path.join(__dirname, '../pages/nine-grid/nine-grid.wxml'), 'utf8')
   assert.match(wxml, /disabled="\{\{processing \|\| saving\}\}"/)

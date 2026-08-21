@@ -171,8 +171,12 @@ Page({
       if (this.isSaveCurrent(token)) wx.showToast({ title: '9 张图片已按顺序保存', icon: 'success' })
     } catch (error) {
       if (this.isSaveCurrent(token)) {
-        const savedCount = Math.min(TOTAL_TILES, Math.max(0, this.data.savedCount))
-        this.setData({ saveProgressText: progressText(savedCount, true), errorMessage: '保存失败，请重试' })
+        if (String(error).includes('图片文件无效，请重新处理图片')) {
+          this.setData({ results: [], savedCount: 0, saveProgressText: '', errorMessage: '图片已失效，请重新生成九宫格' })
+        } else {
+          const savedCount = Math.min(TOTAL_TILES, Math.max(0, this.data.savedCount))
+          this.setData({ saveProgressText: progressText(savedCount, true), errorMessage: '保存失败，请重试' })
+        }
       }
     } finally {
       if (this._activeSaveId === requestId) {

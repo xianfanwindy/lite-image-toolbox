@@ -1,0 +1,5 @@
+.ad-slot {
+  min-height: 0;
+  margin-top: 24rpx;
+  overflow: hidden;
+}

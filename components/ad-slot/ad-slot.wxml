@@ -1,0 +1,3 @@
+<view wx:if="{{enabled && !failed}}" class="ad-slot">
+  <ad unit-id="{{unitId}}" ad-type="banner" binderror="onError" />
+</view>

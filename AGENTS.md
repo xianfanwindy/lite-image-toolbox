@@ -1,42 +1,57 @@
-# AGENTS.md - 轻图工具箱
+# Repository Guidelines
 
-原生微信小程序，四个纯本地图片工具：压缩、尺寸调整、九宫格切图、文字水印。
-不接入后端、云函数、外部 API、用户账号、微信支付。
+A native WeChat Mini Program with four local-only image tools: compression, resizing, nine-grid cropping, and text watermarking. No backend, cloud functions, accounts, payments, or external APIs.
 
-## 红线：运行时禁止网络
+## Project Structure
 
-`app.js`、`pages/`、`utils/`、`components/`、`config/` 中的运行时代码禁止出现 `wx.request`、`wx.uploadFile`、`wx.downloadFile`、`wx.cloud` 及任何 HTTP(S) 地址。
-`scripts/check-no-network.js` 在 `npm test` 中强制门禁，违反即测试失败。新增功能必须先过此门禁。
+```
+app.js / app.json / app.wxss   # App entry and global config
+pages/                          # 5 pages, each with .js/.json/.wxml/.wxss
+  index/  image-compress/  image-resize/  nine-grid/  image-watermark/
+utils/                          # Shared logic: image-picker, canvas, image-math, ...
+components/ad-slot/             # Reusable Banner ad component
+config/ads.js                   # Ad unit IDs (default empty)
+tests/                          # node:test specs, one per page and per util
+scripts/check-no-network.js     # Runtime network gate
+docs/                           # Privacy guide, release checklist, design specs
+```
 
-## 测试
+## Build, Test, and Development
 
-- 框架：Node.js 内置 `node:test`，运行 `npm test`（先跑全部 `tests/*.test.js`，再跑网络门禁）。
-- 每个工具页面都有生命周期硬化测试：canvas 释放、结果失效保护、保存互斥、卸载阻断延迟更新。新增页面交互必须延续此模式。
-- 纯逻辑（尺寸计算、格式判断、广告开关）写在 `utils/`，配独立单测。
+- `npm test` — runs all `tests/*.test.js` via `node --test`, then the network gate.
+- `npm run check:network` — runs only the network capability scanner.
+- No build step: import the project root into WeChat DevTools to compile and preview.
+- Development happens on branch `feat/lite-image-toolbox-v1`.
 
-## Canvas 约定
+## Coding Style
 
-- `utils/canvas.js` 限制单边 ≤ 4096px、总像素 ≤ 16MP（`MAX_CANVAS_PIXELS = 16777216`）。超限抛 `RangeError` 并给出恢复指引，不要静默截断。
-- 水印文字按 Unicode code point / grapheme cluster 计数（上限 30），不要用 `string.length`。
-- PNG 保持透明通道，导出不传 quality；仅 JPG 传 quality。
+- Native WeChat stack only (WXML/WXSS/JS); no UI framework, no runtime dependencies.
+- ESLint config in `.eslintrc.js`.
+- Page files follow `pages/<name>/<name>.{js,json,wxml,wxss}`.
+- Shared logic lives in `utils/` as CommonJS modules.
 
-## 默认值与秘密
+## Testing
 
-- `project.config.json` 的 `appid` 保持 `touristappid`，只在本地临时替换为真实 AppID，禁止提交。
-- `config/ads.js` 两个 Banner unit ID 默认为空字符串，只在本地发布时临时填写，禁止提交真实 ID。
-- 广告加载失败时静默隐藏，不影响图片处理、预览和保存。
+- Framework: Node.js built-in `node:test`.
+- Every tool page has lifecycle tests: canvas release, result invalidation, save mutex, unload guards.
+- Pure logic (math, format, ad config) lives in `utils/` with its own unit tests.
+- All 135 tests must stay green before any merge.
 
-## 上游来源
+## Commits
 
-- 参考自 `LittleWhite1995/tools-applet`，固定 commit `fce4004`，MIT License，来源见 `NOTICE`。
-- `.upstream-tools-applet/` 是本地只读参考（已 gitignore），不要把其中代码直接复制进项目。
-- 上游 `utils/image-picker.js` 调用 `wx.uploadFile` 做远程图片审核，与本项目"图片不上传"冲突，不可复用。
+- Conventional commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`.
+- Stage only specific paths — never `git add .` or `git add -A`.
+- Push after every change.
 
-## 深入文档
+## Security & Configuration
 
-| 主题 | 文件 |
-|---|---|
-| 产品设计规格 | `docs/superpowers/specs/2026-08-21-lite-image-toolbox-design.md` |
-| 实施计划 | `docs/superpowers/plans/2026-08-21-lite-image-toolbox-v1.md` |
-| 隐私指引 | `docs/privacy-guide.md` |
-| 发布清单 | `docs/release-checklist.md` |
+- `project.config.json` `appid` stays `touristappid`; replace locally only, never commit a real AppID.
+- `config/ads.js` banner IDs stay empty; fill locally for release only.
+- `project.private.config.json` is gitignored.
+
+## Agent-Specific Rules
+
+- Runtime code (`app.js`, `pages/`, `utils/`, `components/`, `config/`) must not call `wx.request`, `wx.uploadFile`, `wx.downloadFile`, `wx.cloud`, or use HTTP(S) URLs. The gate fails `npm test` on violation.
+- Canvas limit: 4096px per side, 16MP total; oversized inputs throw with recovery guidance.
+- Watermark text counts Unicode code points/graphemes (max 30), not `string.length`.
+- Do not copy upstream `.upstream-tools-applet/utils/image-picker.js` — it uploads images remotely.

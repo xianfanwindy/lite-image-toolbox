@@ -1,6 +1,6 @@
-function callWx(method, options) {
+function callWx(invoke, options) {
   return new Promise((resolve, reject) => {
-    wx[method]({
+    invoke({
       ...options,
       success: resolve,
       fail: reject,
@@ -24,13 +24,13 @@ function isInvalidTemporaryFile(error) {
 }
 
 async function requestAlbumPermission() {
-  const setting = await callWx('getSetting', {})
+  const setting = await callWx((options) => wx.getSetting(options), {})
   const permission = setting && setting.authSetting && setting.authSetting['scope.writePhotosAlbum']
   if (permission === true) return true
 
   if (permission === undefined) {
     try {
-      await callWx('authorize', { scope: 'scope.writePhotosAlbum' })
+      await callWx((options) => wx.authorize(options), { scope: 'scope.writePhotosAlbum' })
       return true
     } catch (error) {
       if (isCancelled(error)) return false
@@ -38,7 +38,7 @@ async function requestAlbumPermission() {
     }
   }
 
-  const modal = await callWx('showModal', {
+  const modal = await callWx((options) => wx.showModal(options), {
     title: '需要相册权限',
     content: '保存图片需要使用相册权限，请在设置中允许访问相册。',
     confirmText: '去设置',
@@ -46,7 +46,7 @@ async function requestAlbumPermission() {
   if (!modal || !modal.confirm) return false
 
   try {
-    const updated = await callWx('openSetting', {})
+    const updated = await callWx((options) => wx.openSetting(options), {})
     if (!updated || !updated.authSetting) return false
     return updated.authSetting['scope.writePhotosAlbum'] === true
   } catch (error) {
@@ -62,7 +62,7 @@ async function saveImageToAlbum(filePath) {
 
   if (typeof wx.requirePrivacyAuthorize === 'function') {
     try {
-      await callWx('requirePrivacyAuthorize', {})
+      await callWx((options) => wx.requirePrivacyAuthorize(options), {})
     } catch (error) {
       if (isCancelled(error) || isPrivacyRefused(error)) return { saved: false, cancelled: true }
       throw error
@@ -72,7 +72,7 @@ async function saveImageToAlbum(filePath) {
   if (!(await requestAlbumPermission())) return { saved: false, cancelled: true }
 
   try {
-    await callWx('saveImageToPhotosAlbum', { filePath })
+    await callWx((options) => wx.saveImageToPhotosAlbum(options), { filePath })
     return { saved: true, cancelled: false }
   } catch (error) {
     if (isCancelled(error)) return { saved: false, cancelled: true }

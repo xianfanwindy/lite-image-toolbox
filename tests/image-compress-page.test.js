@@ -23,8 +23,12 @@ function clone(value) {
 
 function createDeferred() {
   let resolve
-  const promise = new Promise((next) => { resolve = next })
-  return { promise, resolve }
+  let reject
+  const promise = new Promise((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, reject, resolve }
 }
 
 function installModule(path, exports) {
@@ -303,6 +307,95 @@ test('saveResult accepts one in-flight save and restores saving afterwards', asy
   await Promise.all([first, second])
   assert.equal(page.data.saving, false)
   assert.deepEqual(wx.toasts, [{ title: '已保存到相册', icon: 'success' }])
+})
+
+test('a successful replacement silences a pending save failure', async () => {
+  const saveReady = createDeferred()
+  const replacement = { path: 'new.png', size: 20, width: 30, height: 40, type: 'png' }
+  const { definition, wx } = loadPage({
+    picker: { chooseSingleImage: async () => replacement },
+    canvas: { formatBytes: (size) => `${size} B` },
+    format: { normalizeImageFormat: () => 'png', shouldFillWhite: () => false },
+    save: { saveImageToAlbum: () => saveReady.promise },
+  })
+  const page = createInstance(definition)
+  page.data.resultPath = 'old.jpg'
+  const saving = page.saveResult()
+
+  await page.chooseImage()
+  assert.deepEqual(page.data.source, { ...replacement, format: 'png' })
+  assert.equal(page.data.saving, true)
+  saveReady.reject(new Error('album unavailable'))
+  await saving
+
+  assert.equal(page.data.errorMessage, '')
+  assert.equal(page.data.saving, false)
+  assert.deepEqual(wx.toasts, [])
+})
+
+test('a quality change silences stale save success while preserving the physical mutex', async () => {
+  const saves = []
+  const paths = []
+  const { definition, wx } = loadPage({
+    save: {
+      saveImageToAlbum: (resultPath) => {
+        const deferred = createDeferred()
+        paths.push(resultPath)
+        saves.push(deferred)
+        return deferred.promise
+      },
+    },
+  })
+  const page = createInstance(definition)
+  page.data.resultPath = 'old.jpg'
+  const first = page.saveResult()
+
+  page.onQualityChange({ detail: { value: '75' } })
+  page.data.resultPath = 'new.jpg'
+  const blocked = page.saveResult()
+  assert.deepEqual(paths, ['old.jpg'])
+  assert.equal(page.data.saving, true)
+  saves[0].resolve({ saved: true, cancelled: false })
+  await Promise.all([first, blocked])
+
+  assert.equal(page.data.saving, false)
+  assert.deepEqual(wx.toasts, [])
+  const second = page.saveResult()
+  assert.deepEqual(paths, ['old.jpg', 'new.jpg'])
+  saves[1].resolve({ saved: false, cancelled: true })
+  await second
+  assert.deepEqual(wx.toasts, [])
+})
+
+test('starting a new compression silences an older save success', async () => {
+  const saveReady = createDeferred()
+  const canvasReady = createDeferred()
+  const canvas = {}
+  const context = { fillRect() {}, drawImage() {} }
+  const { definition, wx } = loadPage({
+    canvas: {
+      getCanvas: () => canvasReady.promise,
+      loadCanvasImage: async () => ({}),
+      prepareCanvas: () => ({ context }),
+      exportCanvas: async () => 'new-output.jpg',
+      formatBytes: () => '2 KB',
+    },
+    math: { fitWithinSide: () => ({ width: 10, height: 10 }) },
+    format: { normalizeImageFormat: () => 'jpg', shouldFillWhite: () => true },
+    save: { saveImageToAlbum: () => saveReady.promise },
+  })
+  const page = createInstance(definition)
+  page.data.source = { path: 'source.jpg', width: 10, height: 10, size: 1, format: 'jpg' }
+  page.data.resultPath = 'old-output.jpg'
+  const saving = page.saveResult()
+  const compression = page.compressImage()
+
+  saveReady.resolve({ saved: true, cancelled: false })
+  await saving
+  assert.deepEqual(wx.toasts, [])
+  canvasReady.resolve(canvas)
+  await compression
+  assert.equal(page.data.resultPath, 'new-output.jpg')
 })
 
 test('saveResult cancellation is silent and an unload blocks late updates', async () => {

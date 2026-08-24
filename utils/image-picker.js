@@ -1,6 +1,6 @@
-function callWx(method, options) {
+function callWx(invoke, options) {
   return new Promise((resolve, reject) => {
-    wx[method]({
+    invoke({
       ...options,
       success: resolve,
       fail: reject,
@@ -15,7 +15,7 @@ function isCancelled(error) {
 async function chooseSingleImage() {
   let selected
   try {
-    selected = await callWx('chooseMedia', {
+    selected = await callWx((options) => wx.chooseMedia(options), {
       count: 1,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
@@ -32,7 +32,7 @@ async function chooseSingleImage() {
 
   let info
   try {
-    info = await callWx('getImageInfo', { src: path })
+    info = await callWx((options) => wx.getImageInfo(options), { src: path })
   } catch (error) {
     if (isCancelled(error)) return null
     throw error

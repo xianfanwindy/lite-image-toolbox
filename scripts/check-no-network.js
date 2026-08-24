@@ -16,6 +16,11 @@ const PATTERNS = [
   { label: 'wx.cloud', expression: /\bwx\s*(?:\?\s*)?\.\s*cloud\b|\bwx\s*(?:\?\s*\.\s*)?\[\s*(['"])cloud\1\s*\]/g },
   { label: 'http://', expression: /http:\/\//g },
   { label: 'https://', expression: /https:\/\//g },
+  { label: 'wx dynamic member access', expression: /\bwx\s*(?:\?\s*\.\s*)?\[(?!\s*'[A-Za-z_$][A-Za-z0-9_$]*'\s*\])(?!\s*"[A-Za-z_$][A-Za-z0-9_$]*"\s*\])\s*/g },
+  { label: 'wx.uploadFile', expression: /\b(?:const|let|var)\s*\{(?:\s*uploadFile\b|[^{}]*,\s*uploadFile\b)[^{}]*\}\s*=\s*wx\b/g },
+  { label: 'wx.downloadFile', expression: /\b(?:const|let|var)\s*\{(?:\s*downloadFile\b|[^{}]*,\s*downloadFile\b)[^{}]*\}\s*=\s*wx\b/g },
+  { label: 'wx.request', expression: /\b(?:const|let|var)\s*\{(?:\s*request\b|[^{}]*,\s*request\b)[^{}]*\}\s*=\s*wx\b/g },
+  { label: 'wx.cloud', expression: /\b(?:const|let|var)\s*\{(?:\s*cloud\b|[^{}]*,\s*cloud\b)[^{}]*\}\s*=\s*wx\b/g },
 ]
 
 const REGEX_PREFIX_KEYWORDS = new Set([

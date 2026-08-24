@@ -87,6 +87,7 @@ Page({
       const previousCanvas = this._canvas
       const previousOwnerId = this._canvasOwnerId
       this.nextOperation()
+      this.nextSave()
       this.releaseCanvas(previousOwnerId, previousCanvas)
       this._compressing = false
       this.setData({
@@ -108,6 +109,7 @@ Page({
     const value = Math.round(Number(event && event.detail && event.detail.value))
     const quality = Number.isFinite(value) ? Math.min(95, Math.max(20, value)) : 80
     if (quality === this.data.quality) return
+    this.nextSave()
     this.setData({ quality, resultPath: '', resultSize: 0, resultSizeText: '', errorMessage: '' })
   },
 
@@ -121,6 +123,7 @@ Page({
 
     const quality = this.data.quality
     const token = this.nextOperation()
+    this.nextSave()
     this._compressing = true
     this.setData({ processing: true, resultPath: '', resultSize: 0, resultSizeText: '', errorMessage: '' })
     let canvas
@@ -174,7 +177,10 @@ Page({
     }
 
     const token = this.nextSave()
+    const requestId = (this._saveRequestId || 0) + 1
     const resultPath = this.data.resultPath
+    this._saveRequestId = requestId
+    this._activeSaveId = requestId
     this._saving = true
     this.setData({ saving: true })
     try {
@@ -186,9 +192,10 @@ Page({
       const message = String(error && error.message ? error.message : '')
       this.setData({ errorMessage: message === '图片文件无效，请重新处理图片' ? message : '保存失败，请重试' })
     } finally {
-      if (this.isSaveCurrent(token)) {
+      if (this._activeSaveId === requestId) {
         this._saving = false
-        this.setData({ saving: false })
+        this._activeSaveId = null
+        if (!this._unloaded) this.setData({ saving: false })
       }
     }
   },
@@ -202,6 +209,7 @@ Page({
     this.nextSave()
     this._compressing = false
     this._saving = false
+    this._activeSaveId = null
     this.releaseCanvas(ownerId, canvas)
     this._canvas = null
     this._canvasOwnerId = null

@@ -81,6 +81,31 @@ test('detects split, computed, optional-chain, and comment-separated API members
   })
 })
 
+test('rejects dynamic wx member access that can dispatch a prohibited API', () => {
+  withTempRoot((root) => {
+    writeFile(root, 'utils/dispatcher.js', [
+      'function callWx(method) { return wx[method]({}) }',
+      "callWx('request')",
+      "wx['re' + 'quest']()",
+    ].join('\n'))
+
+    assert.deepEqual(scanFiles(root), [
+      { file: 'utils/dispatcher.js', line: 1, pattern: 'wx dynamic member access' },
+      { file: 'utils/dispatcher.js', line: 3, pattern: 'wx dynamic member access' },
+    ])
+  })
+})
+
+test('detects prohibited APIs destructured from wx', () => {
+  withTempRoot((root) => {
+    writeFile(root, 'utils/destructure.js', 'const { request } = wx\nrequest({})\n')
+
+    assert.deepEqual(scanFiles(root), [
+      { file: 'utils/destructure.js', line: 1, pattern: 'wx.request' },
+    ])
+  })
+})
+
 test('strips regex literals without hiding real runtime API calls or flagging regex text', () => {
   withTempRoot((root) => {
     writeFile(root, 'utils/regex.js', [

@@ -418,6 +418,38 @@ test('saveResult cancellation is silent and an unload blocks late updates', asyn
   assert.equal(page._image, null)
 })
 
+test('unload silences pending save success and failure callbacks', async () => {
+  const cases = [
+    (saving) => saving.resolve({ saved: true, cancelled: false }),
+    (saving) => saving.reject(new Error('late save failure')),
+  ]
+
+  for (const settle of cases) {
+    const saving = createDeferred()
+    const { definition, wx } = loadPage({ save: { saveImageToAlbum: () => saving.promise } })
+    const page = createInstance(definition)
+    let lateUpdates = 0
+    const originalSetData = page.setData
+    page.setData = (patch) => {
+      if (page._unloaded) lateUpdates += 1
+      originalSetData(patch)
+    }
+    page.data.resultPath = 'output.jpg'
+    page.data.errorMessage = 'keep current state'
+
+    const pending = page.saveResult()
+    assert.equal(page._saving, true)
+    page.onUnload()
+    settle(saving)
+    await pending
+
+    assert.equal(page._saving, false)
+    assert.equal(page.data.errorMessage, 'keep current state')
+    assert.equal(lateUpdates, 0)
+    assert.deepEqual(wx.toasts, [])
+  }
+})
+
 test('a cancelled selection does not invalidate an in-flight compression', async () => {
   const canvasReady = createDeferred()
   const context = { fillRect() {}, drawImage() {} }
